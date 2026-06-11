@@ -1,0 +1,893 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>King Solomon — Consumer intelligence that tells you why.</title>
+  <meta name="description" content="King Solomon is the first brand intelligence platform that connects media investment, brand health scores, and consumer language into one real-time verdict." />
+  <meta property="og:title" content="King Solomon — Consumer intelligence that tells you why." />
+  <meta property="og:description" content="Know why your brand metrics move. Real-time Awareness, Consideration, Usage, Imagery and Buzz — connected to your media spend." />
+  <meta property="og:url" content="https://kingsolomonhq.com" />
+
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600;700;800&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet" />
+
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --green-deep:   #0F2318;
+      --green-brand:  #1B4D35;
+      --green-mid:    #2D6B4A;
+      --green-light:  #3D8A5E;
+      --gold:         #C9A84C;
+      --gold-light:   #E2C97A;
+      --cream:        #F5F0E8;
+      --cream-dim:    #C8C2B6;
+      --white:        #FFFFFF;
+      --glass:        rgba(255,255,255,0.04);
+      --glass-border: rgba(255,255,255,0.08);
+    }
+
+    html { scroll-behavior: smooth; }
+
+    body {
+      background: var(--green-deep);
+      color: var(--cream);
+      font-family: 'Inter', sans-serif;
+      font-size: 16px;
+      line-height: 1.6;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* ── NAV ── */
+    nav {
+      position: fixed; top: 0; left: 0; right: 0; z-index: 100;
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 20px 48px;
+      background: rgba(15,35,24,0.85);
+      backdrop-filter: blur(12px);
+      border-bottom: 1px solid var(--glass-border);
+    }
+    .nav-logo {
+      display: flex; align-items: center; gap: 10px;
+      text-decoration: none;
+    }
+    .nav-crown {
+      width: 28px; height: 22px;
+    }
+    .nav-wordmark {
+      font-family: 'Playfair Display', serif;
+      font-size: 18px; font-weight: 700;
+      color: var(--cream); letter-spacing: 0.08em;
+    }
+    .nav-cta {
+      background: var(--gold);
+      color: var(--green-deep);
+      font-family: 'Inter', sans-serif;
+      font-size: 13px; font-weight: 600;
+      padding: 10px 22px;
+      border-radius: 6px;
+      text-decoration: none;
+      letter-spacing: 0.02em;
+      transition: background 0.2s;
+    }
+    .nav-cta:hover { background: var(--gold-light); }
+
+    /* ── HERO ── */
+    .hero {
+      min-height: 100vh;
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      text-align: center;
+      padding: 120px 24px 80px;
+      position: relative;
+      overflow: hidden;
+    }
+    .hero::before {
+      content: '';
+      position: absolute; inset: 0;
+      background:
+        radial-gradient(ellipse 60% 50% at 50% 0%, rgba(27,77,53,0.5) 0%, transparent 70%),
+        radial-gradient(ellipse 40% 30% at 80% 80%, rgba(201,168,76,0.06) 0%, transparent 60%);
+      pointer-events: none;
+    }
+    .hero-crown {
+      width: 72px; height: 58px;
+      margin-bottom: 32px;
+      animation: floatCrown 4s ease-in-out infinite;
+    }
+    @keyframes floatCrown {
+      0%,100% { transform: translateY(0); }
+      50% { transform: translateY(-8px); }
+    }
+    .hero-eyebrow {
+      font-size: 11px; font-weight: 600;
+      letter-spacing: 0.18em; text-transform: uppercase;
+      color: var(--gold);
+      margin-bottom: 20px;
+    }
+    .hero-headline {
+      font-family: 'Playfair Display', serif;
+      font-size: clamp(40px, 6vw, 76px);
+      font-weight: 800;
+      line-height: 1.08;
+      letter-spacing: -0.02em;
+      color: var(--cream);
+      max-width: 820px;
+      margin-bottom: 24px;
+    }
+    .hero-headline em {
+      font-style: italic;
+      color: var(--gold);
+    }
+    .hero-sub {
+      font-size: clamp(16px, 2vw, 20px);
+      font-weight: 300;
+      color: var(--cream-dim);
+      max-width: 560px;
+      margin-bottom: 48px;
+      line-height: 1.7;
+    }
+    .hero-form {
+      display: flex; gap: 12px;
+      flex-wrap: wrap; justify-content: center;
+      width: 100%; max-width: 480px;
+    }
+    .hero-input {
+      flex: 1; min-width: 220px;
+      background: var(--glass);
+      border: 1px solid var(--glass-border);
+      border-radius: 8px;
+      padding: 14px 18px;
+      color: var(--cream);
+      font-family: 'Inter', sans-serif;
+      font-size: 15px;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+    .hero-input::placeholder { color: rgba(197,194,186,0.45); }
+    .hero-input:focus { border-color: var(--gold); }
+    .hero-btn {
+      background: var(--gold);
+      color: var(--green-deep);
+      border: none; border-radius: 8px;
+      padding: 14px 28px;
+      font-family: 'Inter', sans-serif;
+      font-size: 15px; font-weight: 600;
+      cursor: pointer;
+      transition: background 0.2s, transform 0.15s;
+      white-space: nowrap;
+    }
+    .hero-btn:hover { background: var(--gold-light); transform: translateY(-1px); }
+    .hero-btn:active { transform: translateY(0); }
+    .hero-footnote {
+      margin-top: 16px;
+      font-size: 12px;
+      color: rgba(197,194,186,0.4);
+    }
+    .hero-stats {
+      display: flex; gap: 48px;
+      margin-top: 72px;
+      flex-wrap: wrap; justify-content: center;
+    }
+    .stat-item { text-align: center; }
+    .stat-num {
+      font-family: 'Playfair Display', serif;
+      font-size: 36px; font-weight: 700;
+      color: var(--gold);
+      line-height: 1;
+    }
+    .stat-label {
+      font-size: 12px; font-weight: 400;
+      color: var(--cream-dim);
+      margin-top: 6px;
+      letter-spacing: 0.04em;
+    }
+
+    /* ── PROBLEM ── */
+    .problem {
+      padding: 100px 24px;
+      max-width: 900px; margin: 0 auto;
+      text-align: center;
+    }
+    .section-eyebrow {
+      font-size: 11px; font-weight: 600;
+      letter-spacing: 0.18em; text-transform: uppercase;
+      color: var(--gold);
+      margin-bottom: 16px;
+      display: block;
+    }
+    .section-headline {
+      font-family: 'Playfair Display', serif;
+      font-size: clamp(28px, 4vw, 46px);
+      font-weight: 700;
+      line-height: 1.15;
+      color: var(--cream);
+      margin-bottom: 24px;
+    }
+    .section-body {
+      font-size: 18px; font-weight: 300;
+      color: var(--cream-dim);
+      line-height: 1.75;
+      max-width: 680px; margin: 0 auto;
+    }
+    .problem-cards {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+      gap: 16px;
+      margin-top: 56px;
+    }
+    .problem-card {
+      background: var(--glass);
+      border: 1px solid var(--glass-border);
+      border-radius: 12px;
+      padding: 28px 24px;
+      text-align: left;
+    }
+    .problem-icon {
+      font-size: 24px; margin-bottom: 14px;
+    }
+    .problem-card h3 {
+      font-family: 'Playfair Display', serif;
+      font-size: 18px; font-weight: 600;
+      color: var(--cream);
+      margin-bottom: 8px;
+    }
+    .problem-card p {
+      font-size: 14px; color: var(--cream-dim);
+      line-height: 1.65;
+    }
+
+    /* ── SOLUTION / KPIs ── */
+    .solution {
+      padding: 100px 24px;
+      background: rgba(27,77,53,0.12);
+      border-top: 1px solid var(--glass-border);
+      border-bottom: 1px solid var(--glass-border);
+    }
+    .solution-inner {
+      max-width: 1100px; margin: 0 auto;
+    }
+    .solution-header {
+      text-align: center; margin-bottom: 64px;
+    }
+    .kpi-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+      gap: 14px;
+    }
+    .kpi-card {
+      background: var(--glass);
+      border: 1px solid var(--glass-border);
+      border-radius: 12px;
+      padding: 24px 20px;
+      position: relative;
+      overflow: hidden;
+      transition: border-color 0.2s, transform 0.2s;
+    }
+    .kpi-card:hover {
+      border-color: rgba(201,168,76,0.3);
+      transform: translateY(-3px);
+    }
+    .kpi-card::before {
+      content: '';
+      position: absolute; top: 0; left: 0; right: 0;
+      height: 2px;
+      background: linear-gradient(90deg, var(--gold), transparent);
+    }
+    .kpi-label {
+      font-size: 10px; font-weight: 600;
+      letter-spacing: 0.15em; text-transform: uppercase;
+      color: var(--gold);
+      margin-bottom: 10px;
+    }
+    .kpi-score {
+      font-family: 'Playfair Display', serif;
+      font-size: 42px; font-weight: 700;
+      color: var(--cream);
+      line-height: 1;
+      margin-bottom: 6px;
+    }
+    .kpi-desc {
+      font-size: 12px; color: var(--cream-dim);
+      line-height: 1.5;
+    }
+    .kpi-trend {
+      display: inline-flex; align-items: center; gap: 4px;
+      font-size: 11px; font-weight: 500;
+      margin-top: 10px;
+      padding: 3px 8px;
+      border-radius: 20px;
+    }
+    .trend-up { background: rgba(61,138,94,0.2); color: #5fc68a; }
+    .trend-down { background: rgba(226,75,74,0.15); color: #e87878; }
+    .trend-flat { background: rgba(201,168,76,0.15); color: var(--gold); }
+
+    /* ── VERDICT ── */
+    .verdict-section {
+      padding: 100px 24px;
+      max-width: 900px; margin: 0 auto;
+      text-align: center;
+    }
+    .verdict-box {
+      background: var(--glass);
+      border: 1px solid var(--glass-border);
+      border-radius: 16px;
+      padding: 40px 48px;
+      margin-top: 48px;
+      text-align: left;
+      position: relative;
+    }
+    .verdict-box::before {
+      content: '';
+      position: absolute; inset: 0;
+      border-radius: 16px;
+      background: linear-gradient(135deg, rgba(201,168,76,0.05) 0%, transparent 60%);
+      pointer-events: none;
+    }
+    .verdict-tag {
+      display: inline-flex; align-items: center; gap: 8px;
+      background: rgba(201,168,76,0.12);
+      border: 1px solid rgba(201,168,76,0.25);
+      border-radius: 20px;
+      padding: 5px 14px;
+      font-size: 11px; font-weight: 600;
+      letter-spacing: 0.1em; text-transform: uppercase;
+      color: var(--gold);
+      margin-bottom: 20px;
+    }
+    .verdict-text {
+      font-family: 'Playfair Display', serif;
+      font-size: clamp(17px, 2vw, 22px);
+      font-weight: 400;
+      color: var(--cream);
+      line-height: 1.75;
+      font-style: italic;
+    }
+    .verdict-meta {
+      margin-top: 24px;
+      display: flex; gap: 24px; flex-wrap: wrap;
+    }
+    .verdict-chip {
+      font-size: 12px; font-weight: 500;
+      color: var(--cream-dim);
+      display: flex; align-items: center; gap: 6px;
+    }
+    .verdict-chip span { color: var(--gold); }
+
+    /* ── HOW IT WORKS ── */
+    .how {
+      padding: 100px 24px;
+      background: rgba(27,77,53,0.12);
+      border-top: 1px solid var(--glass-border);
+      border-bottom: 1px solid var(--glass-border);
+    }
+    .how-inner { max-width: 1000px; margin: 0 auto; }
+    .how-header { text-align: center; margin-bottom: 64px; }
+    .how-steps {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 32px;
+    }
+    .how-step {
+      display: flex; gap: 20px;
+      align-items: flex-start;
+    }
+    .how-num {
+      font-family: 'Playfair Display', serif;
+      font-size: 48px; font-weight: 700;
+      color: rgba(201,168,76,0.2);
+      line-height: 1;
+      flex-shrink: 0;
+      width: 48px;
+    }
+    .how-content h3 {
+      font-family: 'Playfair Display', serif;
+      font-size: 20px; font-weight: 600;
+      color: var(--cream);
+      margin-bottom: 8px;
+    }
+    .how-content p {
+      font-size: 14px; color: var(--cream-dim);
+      line-height: 1.7;
+    }
+
+    /* ── PRICING ── */
+    .pricing {
+      padding: 100px 24px;
+      max-width: 1100px; margin: 0 auto;
+    }
+    .pricing-header { text-align: center; margin-bottom: 64px; }
+    .pricing-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 20px;
+      align-items: start;
+    }
+    .pricing-card {
+      background: var(--glass);
+      border: 1px solid var(--glass-border);
+      border-radius: 16px;
+      padding: 36px 32px;
+      transition: border-color 0.2s;
+    }
+    .pricing-card.featured {
+      border-color: var(--gold);
+      position: relative;
+    }
+    .pricing-card.featured::before {
+      content: 'Most popular';
+      position: absolute; top: -12px; left: 50%; transform: translateX(-50%);
+      background: var(--gold);
+      color: var(--green-deep);
+      font-size: 11px; font-weight: 700;
+      letter-spacing: 0.08em; text-transform: uppercase;
+      padding: 4px 14px; border-radius: 20px;
+    }
+    .plan-name {
+      font-size: 12px; font-weight: 600;
+      letter-spacing: 0.12em; text-transform: uppercase;
+      color: var(--gold); margin-bottom: 8px;
+    }
+    .plan-price-inr {
+      font-family: 'Playfair Display', serif;
+      font-size: 36px; font-weight: 700;
+      color: var(--cream); line-height: 1;
+    }
+    .plan-price-usd {
+      font-size: 13px; color: var(--cream-dim);
+      margin: 4px 0 6px;
+    }
+    .plan-period {
+      font-size: 11px; color: rgba(197,194,186,0.4);
+      margin-bottom: 24px;
+    }
+    .plan-divider {
+      border: none; border-top: 1px solid var(--glass-border);
+      margin: 24px 0;
+    }
+    .plan-features { list-style: none; display: flex; flex-direction: column; gap: 10px; }
+    .plan-features li {
+      font-size: 13px; color: var(--cream-dim);
+      display: flex; align-items: flex-start; gap: 10px; line-height: 1.5;
+    }
+    .plan-features li::before {
+      content: '✦';
+      color: var(--gold); font-size: 10px;
+      flex-shrink: 0; margin-top: 3px;
+    }
+    .plan-btn {
+      display: block; width: 100%;
+      margin-top: 28px;
+      padding: 13px;
+      border-radius: 8px;
+      text-align: center;
+      font-family: 'Inter', sans-serif;
+      font-size: 14px; font-weight: 600;
+      text-decoration: none;
+      transition: all 0.2s;
+      cursor: pointer; border: none;
+    }
+    .plan-btn-outline {
+      background: transparent;
+      border: 1px solid var(--glass-border);
+      color: var(--cream);
+    }
+    .plan-btn-outline:hover { border-color: var(--gold); color: var(--gold); }
+    .plan-btn-gold {
+      background: var(--gold);
+      color: var(--green-deep);
+    }
+    .plan-btn-gold:hover { background: var(--gold-light); }
+
+    /* ── CTA ── */
+    .cta-section {
+      padding: 100px 24px;
+      text-align: center;
+      background: linear-gradient(180deg, transparent 0%, rgba(27,77,53,0.2) 100%);
+    }
+    .cta-section .section-headline { margin-bottom: 16px; }
+    .cta-section .section-body { margin-bottom: 40px; }
+    .cta-form {
+      display: flex; gap: 12px;
+      flex-wrap: wrap; justify-content: center;
+      max-width: 480px; margin: 0 auto;
+    }
+
+    /* ── FOOTER ── */
+    footer {
+      border-top: 1px solid var(--glass-border);
+      padding: 40px 48px;
+      display: flex; align-items: center; justify-content: space-between;
+      flex-wrap: wrap; gap: 16px;
+    }
+    .footer-logo {
+      font-family: 'Playfair Display', serif;
+      font-size: 16px; font-weight: 700;
+      color: var(--cream); letter-spacing: 0.08em;
+    }
+    .footer-copy {
+      font-size: 12px; color: rgba(197,194,186,0.35);
+    }
+
+    /* ── SUCCESS STATE ── */
+    .success-msg {
+      display: none;
+      background: rgba(61,138,94,0.15);
+      border: 1px solid rgba(61,138,94,0.3);
+      border-radius: 8px;
+      padding: 14px 20px;
+      font-size: 14px;
+      color: #5fc68a;
+      margin-top: 12px;
+      text-align: center;
+    }
+
+    /* ── RESPONSIVE ── */
+    @media (max-width: 640px) {
+      nav { padding: 16px 20px; }
+      .hero { padding: 100px 20px 60px; }
+      .verdict-box { padding: 28px 24px; }
+      footer { padding: 32px 20px; flex-direction: column; text-align: center; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- NAV -->
+  <nav>
+    <a href="/" class="nav-logo">
+      <svg width="28" height="22" viewBox="0 0 56 44" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <path d="M4 36L12 14L22 26L28 6L34 26L44 14L52 36H4Z" fill="#C9A84C"/>
+        <rect x="4" y="36" width="48" height="6" rx="2" fill="#A07830"/>
+      </svg>
+      <div style="display:flex;flex-direction:column;line-height:1.1;">
+        <span style="font-family:'Playfair Display',serif;font-size:16px;font-weight:700;color:#F5F0E8;letter-spacing:0.1em;">KING SOLOMON</span>
+        <span style="font-family:'Inter',sans-serif;font-size:10px;font-weight:400;color:#C9A84C;letter-spacing:0.08em;">Consumer intelligence that tells you why.</span>
+      </div>
+    </a>
+    <a href="#waitlist" class="nav-cta">Join the waitlist</a>
+  </nav>
+
+  <!-- HERO -->
+  <section class="hero">
+    <svg class="hero-crown" viewBox="0 0 80 64" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <path d="M5 52L16 18L32 36L40 6L48 36L64 18L75 52H5Z" fill="#C9A84C"/>
+      <rect x="5" y="52" width="70" height="9" rx="3" fill="#A07830"/>
+    </svg>
+    <p class="hero-eyebrow">Introducing King Solomon</p>
+    <h1 class="hero-headline">Your brand tracker tells you <em>what.</em><br>We tell you <em>why.</em></h1>
+    <p class="hero-sub">Real-time brand intelligence that connects your media investment to Awareness, Consideration, Usage, Imagery and Buzz — with a plain-language verdict on what to do next.</p>
+    <form class="hero-form" id="heroForm">
+      <input class="hero-input" type="email" placeholder="your@email.com" required id="heroEmail" />
+      <button class="hero-btn" type="submit">Get early access</button>
+    </form>
+    <p class="hero-footnote">No credit card. No spam. India-first pricing.</p>
+    <div class="success-msg" id="heroSuccess">✦ You're on the list. We'll be in touch soon.</div>
+    <div class="hero-stats">
+      <div class="stat-item">
+        <div class="stat-num">5</div>
+        <div class="stat-label">Brand KPIs tracked<br>in real time</div>
+      </div>
+      <div class="stat-item">
+        <div class="stat-num">2hr</div>
+        <div class="stat-label">Fastest update<br>cycle for Buzz</div>
+      </div>
+      <div class="stat-item">
+        <div class="stat-num">40%</div>
+        <div class="stat-label">Below Western<br>tool pricing</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- PROBLEM -->
+  <section class="problem">
+    <span class="section-eyebrow">The problem</span>
+    <h2 class="section-headline">Every tracker gives you a score.<br>Nobody explains what it means.</h2>
+    <p class="section-body">Brand managers walk into leadership meetings with dashboards full of numbers — and no story. King Solomon was built to fix that.</p>
+    <div class="problem-cards">
+      <div class="problem-card">
+        <div class="problem-icon">📉</div>
+        <h3>Scores without context</h3>
+        <p>A number without a zone, a competitor benchmark, or a movement signal is decoration — not intelligence.</p>
+      </div>
+      <div class="problem-card">
+        <div class="problem-icon">💸</div>
+        <h3>Spend without attribution</h3>
+        <p>Your media agency shows CTR. Your brand tracker shows a score. Nobody connects the two. King Solomon does.</p>
+      </div>
+      <div class="problem-card">
+        <div class="problem-icon">🕐</div>
+        <h3>Monthly reports, daily decisions</h3>
+        <p>Traditional trackers tell you what happened last month. Campaigns move in days. You need signals that keep up.</p>
+      </div>
+      <div class="problem-card">
+        <div class="problem-icon">🌏</div>
+        <h3>Western tools, Indian prices</h3>
+        <p>Tracksuit and Latana charge $25K–$150K/year with no India presence. King Solomon is built for this market.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- KPI DASHBOARD PREVIEW -->
+  <section class="solution">
+    <div class="solution-inner">
+      <div class="solution-header">
+        <span class="section-eyebrow">The platform</span>
+        <h2 class="section-headline">Five KPIs. One real-time verdict.</h2>
+        <p class="section-body" style="margin-top:16px;">Every score has three layers — zone, competitor context, and movement direction. So you always know where you stand and what changed.</p>
+      </div>
+      <div class="kpi-grid">
+        <div class="kpi-card">
+          <div class="kpi-label">Awareness</div>
+          <div class="kpi-score">58</div>
+          <div class="kpi-desc">Total Awareness Index — brand presence across all digital touchpoints</div>
+          <div class="kpi-trend trend-up">↑ +8 pts this week</div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-label">Consideration</div>
+          <div class="kpi-score">34</div>
+          <div class="kpi-desc">Behavioural intent signals — active evaluation and comparison activity</div>
+          <div class="kpi-trend trend-flat">→ Stable</div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-label">Usage</div>
+          <div class="kpi-score">61</div>
+          <div class="kpi-desc">Post-experience signals — reviews, UGC, repeat purchase language</div>
+          <div class="kpi-trend trend-up">↑ +3 pts this week</div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-label">Imagery</div>
+          <div class="kpi-score">47</div>
+          <div class="kpi-desc">Top brand associations ranked by frequency and strength vs competitors</div>
+          <div class="kpi-trend trend-flat">→ Stable</div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-label">Buzz</div>
+          <div class="kpi-score">+24</div>
+          <div class="kpi-desc">Net sentiment score — positive minus negative weighted by source authority</div>
+          <div class="kpi-trend trend-down">↓ −6 pts today</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- SOLOMON'S VERDICT -->
+  <section class="verdict-section">
+    <span class="section-eyebrow">Solomon's Verdict</span>
+    <h2 class="section-headline">The screen no competitor has built.</h2>
+    <p class="section-body">An AI-written narrative that tells your CMO — in plain language — what happened to the brand, why it happened, and exactly what to do next.</p>
+    <div class="verdict-box">
+      <div class="verdict-tag">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none"><path d="M12 2L15.09 8.26L22 9.27L17 14.14L18.18 21.02L12 17.77L5.82 21.02L7 14.14L2 9.27L8.91 8.26L12 2Z" fill="#C9A84C"/></svg>
+        Solomon's Verdict — Live
+      </div>
+      <p class="verdict-text">"Your Awareness score rose 8 points this week — driven by the ET Brand Equity feature on Wednesday. However your Consideration score has not moved in the same period. Consumers are hearing about you but not yet evaluating you. The gap between Awareness (58) and Consideration (34) is your biggest commercial opportunity right now. We recommend activating mid-funnel comparison content before increasing your awareness spend further."</p>
+      <div class="verdict-meta">
+        <div class="verdict-chip">Attribution: <span>PR-driven (High confidence)</span></div>
+        <div class="verdict-chip">Next action: <span>Mid-funnel content — this week</span></div>
+        <div class="verdict-chip">Risk flag: <span>Buzz declining — monitor</span></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- HOW IT WORKS -->
+  <section class="how">
+    <div class="how-inner">
+      <div class="how-header">
+        <span class="section-eyebrow">How it works</span>
+        <h2 class="section-headline">Set up in minutes.<br>Insights in hours.</h2>
+      </div>
+      <div class="how-steps">
+        <div class="how-step">
+          <div class="how-num">1</div>
+          <div class="how-content">
+            <h3>Connect your brand</h3>
+            <p>Add your brand name, up to 3 competitors, and your category. King Solomon starts tracking immediately — no data upload required.</p>
+          </div>
+        </div>
+        <div class="how-step">
+          <div class="how-num">2</div>
+          <div class="how-content">
+            <h3>Log your campaigns</h3>
+            <p>Connect your Meta and Google Ads accounts or manually tag campaigns. Every media action gets time-stamped against your brand scores.</p>
+          </div>
+        </div>
+        <div class="how-step">
+          <div class="how-num">3</div>
+          <div class="how-content">
+            <h3>Read the Verdict</h3>
+            <p>Solomon's Verdict tells you what moved, what caused it, and what to do next — updated continuously, written in plain language for your CMO.</p>
+          </div>
+        </div>
+        <div class="how-step">
+          <div class="how-num">4</div>
+          <div class="how-content">
+            <h3>Go deeper with primary research</h3>
+            <p>When you need TOM awareness or stated purchase intent — launch a 15-minute consumer survey distributed via Meta, incentivised via UPI. Results in 48 hours.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- PRICING -->
+  <section class="pricing" id="pricing">
+    <div class="pricing-header">
+      <span class="section-eyebrow">Pricing</span>
+      <h2 class="section-headline">India-first pricing.<br>Global-standard intelligence.</h2>
+      <p class="section-body" style="margin-top:16px;">Annual billing only — brand tracking takes time to show value. All plans include a 2-month bonus for annual commitment.</p>
+    </div>
+    <div class="pricing-grid">
+      <div class="pricing-card">
+        <div class="plan-name">Insight</div>
+        <div class="plan-price-inr">₹12,000</div>
+        <div class="plan-price-usd">~$149 / month</div>
+        <div class="plan-period">per month, billed annually</div>
+        <hr class="plan-divider" />
+        <ul class="plan-features">
+          <li>2 active campaigns</li>
+          <li>1 brand tracked</li>
+          <li>Core KPI dashboard</li>
+          <li>Pre + post survey waves</li>
+          <li>PDF export</li>
+          <li>2 user seats</li>
+        </ul>
+        <a href="#waitlist" class="plan-btn plan-btn-outline">Join waitlist</a>
+      </div>
+      <div class="pricing-card featured">
+        <div class="plan-name">Growth</div>
+        <div class="plan-price-inr">₹28,000</div>
+        <div class="plan-price-usd">~$329 / month</div>
+        <div class="plan-period">per month, billed annually</div>
+        <hr class="plan-divider" />
+        <ul class="plan-features">
+          <li>6 active campaigns</li>
+          <li>1 brand + 3 competitors tracked</li>
+          <li>Solomon's Verdict — AI narrative</li>
+          <li>Pre / mid / post survey waves</li>
+          <li>Audience builder</li>
+          <li>White-label report export</li>
+          <li>5 user seats</li>
+        </ul>
+        <a href="#waitlist" class="plan-btn plan-btn-gold">Join waitlist</a>
+      </div>
+      <div class="pricing-card">
+        <div class="plan-name">Command</div>
+        <div class="plan-price-inr">₹65,000</div>
+        <div class="plan-price-usd">~$749 / month</div>
+        <div class="plan-period">per month, billed annually</div>
+        <hr class="plan-divider" />
+        <ul class="plan-features">
+          <li>Unlimited campaigns</li>
+          <li>Up to 5 brands (client accounts)</li>
+          <li>Solomon's Verdict for each brand</li>
+          <li>Client-branded portal</li>
+          <li>Custom questions in surveys</li>
+          <li>Unlimited seats</li>
+          <li>Priority onboarding</li>
+        </ul>
+        <a href="#waitlist" class="plan-btn plan-btn-outline">Join waitlist</a>
+      </div>
+    </div>
+  </section>
+
+  <!-- FINAL CTA -->
+  <section class="cta-section" id="waitlist">
+    <span class="section-eyebrow">Early access</span>
+    <h2 class="section-headline">Be the first brand<br>to know why.</h2>
+    <p class="section-body">King Solomon is in early access. First 20 customers get 50% off their first year — locked in for life.</p>
+    <form class="cta-form" id="ctaForm">
+      <input class="hero-input" type="email" placeholder="your@email.com" required id="ctaEmail" />
+      <button class="hero-btn" type="submit">Claim early access</button>
+    </form>
+    <div class="success-msg" id="ctaSuccess">✦ You're on the list. We'll be in touch soon.</div>
+    <p class="hero-footnote" style="margin-top:16px;">No credit card. No spam. Cancel anytime.</p>
+  </section>
+
+  <!-- FOOTER -->
+  <footer>
+    <div class="footer-logo">KING SOLOMON</div>
+    <div class="footer-copy">© 2026 King Solomon · kingsolomonhq.com · Bengaluru, India</div>
+  </footer>
+
+  <script>
+    // Resend config
+    const RESEND_API_KEY = 're_dsu3i1yc_LB44DyLXJew9ZdeFbQhf6fWP';
+
+    // Send confirmation email via Resend
+    async function sendConfirmationEmail(email) {
+      await fetch('https://api.resend.com/emails', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${RESEND_API_KEY}`
+        },
+        body: JSON.stringify({
+          from: 'King Solomon <hello@kingsolomonhq.com>',
+          to: [email],
+          subject: 'You\'re on the King Solomon waitlist 👑',
+          html: `
+            <div style="font-family:Georgia,serif;max-width:560px;margin:0 auto;background:#0F2318;color:#F5F0E8;padding:48px 40px;border-radius:12px;">
+              <div style="text-align:center;margin-bottom:32px;">
+                <p style="font-size:32px;margin:0;">👑</p>
+                <h1 style="font-family:Georgia,serif;font-size:28px;font-weight:700;color:#C9A84C;margin:16px 0 8px;letter-spacing:0.05em;">KING SOLOMON</h1>
+                <p style="font-size:13px;color:#8FA897;margin:0;letter-spacing:0.1em;text-transform:uppercase;">Consumer intelligence that tells you why.</p>
+              </div>
+              <hr style="border:none;border-top:1px solid rgba(255,255,255,0.08);margin:24px 0;" />
+              <h2 style="font-size:22px;font-weight:600;color:#F5F0E8;margin:0 0 16px;">You're on the list.</h2>
+              <p style="font-size:15px;color:#C8C2B6;line-height:1.7;margin:0 0 16px;">Thank you for joining the King Solomon waitlist. You're among the first to know when we launch.</p>
+              <p style="font-size:15px;color:#C8C2B6;line-height:1.7;margin:0 0 24px;">As an early member, you'll get <strong style="color:#C9A84C;">50% off your first year</strong> — locked in for life.</p>
+              <div style="background:rgba(201,168,76,0.08);border:1px solid rgba(201,168,76,0.2);border-radius:8px;padding:20px 24px;margin:0 0 24px;">
+                <p style="font-size:13px;color:#C9A84C;font-weight:600;margin:0 0 8px;text-transform:uppercase;letter-spacing:0.08em;">What King Solomon does</p>
+                <p style="font-size:14px;color:#C8C2B6;line-height:1.6;margin:0;">Real-time brand intelligence that connects your media investment to Awareness, Consideration, Usage, Imagery and Buzz — with a plain-language verdict on what to do next.</p>
+              </div>
+              <p style="font-size:14px;color:#C8C2B6;line-height:1.7;margin:0 0 32px;">We'll be in touch soon with early access details. In the meantime — if you have a brand tracking question or want to talk about your brand's health, just reply to this email.</p>
+              <hr style="border:none;border-top:1px solid rgba(255,255,255,0.08);margin:0 0 24px;" />
+              <p style="font-size:12px;color:rgba(197,194,186,0.4);margin:0;text-align:center;">King Solomon · kingsolomonhq.com · Bengaluru, India</p>
+            </div>
+          `
+        })
+      });
+    }
+    const SUPABASE_URL = 'https://alrwyeenxeuxgkcskkes.supabase.co';
+    const SUPABASE_KEY = 'sb_publishable_o1j3z16rgfySe5QnJgMHyQ_iR0sGvme';
+
+    // Save email to Supabase waitlist table
+    async function saveToSupabase(email, source) {
+      const response = await fetch(`${SUPABASE_URL}/rest/v1/waitlist`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'apikey': SUPABASE_KEY,
+          'Authorization': `Bearer ${SUPABASE_KEY}`,
+          'Prefer': 'return=minimal'
+        },
+        body: JSON.stringify({ email, source })
+      });
+      if (!response.ok) {
+        const error = await response.text();
+        throw new Error(error);
+      }
+      return true;
+    }
+
+    // Waitlist form handler
+    function handleForm(formId, emailId, successId, source) {
+      const form = document.getElementById(formId);
+      const success = document.getElementById(successId);
+      if (!form) return;
+      form.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const email = document.getElementById(emailId).value;
+        const btn = form.querySelector('button');
+        btn.textContent = 'Joining...';
+        btn.disabled = true;
+        try {
+          await saveToSupabase(email, source);
+          // Send confirmation email
+          sendConfirmationEmail(email).catch(() => {}); // fire and forget
+          form.style.display = 'none';
+          success.style.display = 'block';
+        } catch (err) {
+          // If duplicate email — still show success (don't expose errors)
+          form.style.display = 'none';
+          success.style.display = 'block';
+        }
+      });
+    }
+    handleForm('heroForm', 'heroEmail', 'heroSuccess', 'hero');
+    handleForm('ctaForm', 'ctaEmail', 'ctaSuccess', 'cta');
+
+    // Smooth scroll for nav CTA
+    document.querySelectorAll('a[href="#waitlist"]').forEach(a => {
+      a.addEventListener('click', e => {
+        e.preventDefault();
+        document.getElementById('waitlist').scrollIntoView({ behavior: 'smooth' });
+      });
+    });
+  </script>
+</body>
+</html>
