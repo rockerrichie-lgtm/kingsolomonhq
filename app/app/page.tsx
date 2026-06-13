@@ -26,10 +26,21 @@ export default function Home() {
     })
   }
 
+  async function sendConfirmation(email: string) {
+    await fetch('/api/send-confirmation', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email })
+    })
+  }
+
   async function handleHero(e: React.FormEvent) {
     e.preventDefault()
     setHeroLoading(true)
-    try { await saveToSupabase(heroEmail, 'hero') } catch {}
+    try {
+      await saveToSupabase(heroEmail, 'hero')
+      sendConfirmation(heroEmail).catch(() => {})
+    } catch {}
     setHeroLoading(false)
     setHeroSuccess(true)
   }
@@ -37,7 +48,10 @@ export default function Home() {
   async function handleCta(e: React.FormEvent) {
     e.preventDefault()
     setCtaLoading(true)
-    try { await saveToSupabase(ctaEmail, 'cta') } catch {}
+    try {
+      await saveToSupabase(ctaEmail, 'cta')
+      sendConfirmation(ctaEmail).catch(() => {})
+    } catch {}
     setCtaLoading(false)
     setCtaSuccess(true)
   }
@@ -175,7 +189,7 @@ export default function Home() {
           {[
             {name:'Insight',inr:'₹12,000',usd:'~$149 / month',features:['2 active campaigns','1 brand tracked','Core KPI dashboard','Pre + post survey waves','PDF export','2 user seats'],featured:false},
             {name:'Growth',inr:'₹28,000',usd:'~$329 / month',features:["6 active campaigns","1 brand + 3 competitors","Solomon's Verdict — AI narrative","Pre / mid / post survey waves","Audience builder","White-label report export","5 user seats"],featured:true},
-            {name:'Command',inr:'₹65,000',usd:'~$749 / month',features:['Unlimited campaigns','Up to 5 brands','Solomon\'s Verdict for each brand','Client-branded portal','Custom survey questions','Unlimited seats','Priority onboarding'],featured:false}
+            {name:'Command',inr:'₹65,000',usd:'~$749 / month',features:['Unlimited campaigns','Up to 5 brands',"Solomon's Verdict for each brand",'Client-branded portal','Custom survey questions','Unlimited seats','Priority onboarding'],featured:false}
           ].map(p => (
             <div key={p.name} style={{background:'rgba(255,255,255,0.04)',border:`1px solid ${p.featured?'#C9A84C':'rgba(255,255,255,0.08)'}`,borderRadius:16,padding:'36px 32px',position:'relative'}}>
               {p.featured && <div style={{position:'absolute',top:-12,left:'50%',transform:'translateX(-50%)',background:'#C9A84C',color:'#0F2318',fontSize:11,fontWeight:700,padding:'4px 14px',borderRadius:20}}>Most popular</div>}
