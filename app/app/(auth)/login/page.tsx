@@ -16,45 +16,69 @@ export default function LoginPage() {
     setLoading(true)
     setError('')
     const supabase = createClient()
-    const { error } = await supabase.auth.signInWithPassword({ email, password })
+    const { error, data } = await supabase.auth.signInWithPassword({ email, password })
+    
     if (error) {
-      setError(error.message)
+      if (error.message.toLowerCase().includes('invalid login') ||
+          error.message.toLowerCase().includes('invalid credentials')) {
+        setError('Incorrect email or password. Please try again.')
+      } else if (error.message.toLowerCase().includes('email not confirmed')) {
+        setError('Please confirm your email before signing in. Check your inbox.')
+      } else {
+        setError('Something went wrong. Please try again.')
+      }
       setLoading(false)
+      return
+    }
+
+    // Check if brand is set up
+    const { data: brands } = await supabase.from('brands').select('id').eq('user_id', data.user.id).single()
+    if (!brands) {
+      router.push('/brand-setup')
     } else {
       router.push('/dashboard')
     }
   }
 
   return (
-    <div className="min-h-screen bg-black flex items-center justify-center">
-      <div className="w-full max-w-md p-8">
-        <h1 className="text-3xl font-bold text-white mb-2">King Solomon</h1>
-        <p className="text-zinc-400 mb-8">Sign in to your account</p>
-        {error && <p className="text-red-400 mb-4 text-sm">{error}</p>}
+    <div style={{minHeight:'100vh',background:'#0F2318',display:'flex',alignItems:'center',justifyContent:'center',padding:'24px'}}>
+      <div style={{width:'100%',maxWidth:440}}>
+        <div style={{textAlign:'center',marginBottom:40}}>
+          <svg width="40" height="32" viewBox="0 0 56 44" fill="none" style={{marginBottom:16}}><path d="M4 36L12 14L22 26L28 6L34 26L44 14L52 36H4Z" fill="#C9A84C"/><rect x="4" y="36" width="48" height="6" rx="2" fill="#A07830"/></svg>
+          <h1 style={{fontFamily:'Georgia,serif',fontSize:28,fontWeight:700,color:'#F5F0E8',marginBottom:8}}>Sign in</h1>
+          <p style={{fontSize:14,color:'#C8C2B6'}}>King Solomon — brand intelligence</p>
+        </div>
+
+        {error && (
+          <div style={{background:'rgba(232,120,120,0.1)',border:'1px solid rgba(232,120,120,0.3)',borderRadius:8,padding:'12px 16px',marginBottom:20}}>
+            <p style={{color:'#e87878',fontSize:13,lineHeight:1.5}}>{error}</p>
+          </div>
+        )}
+
         <input
           type="email"
           placeholder="Email"
           value={email}
           onChange={e => setEmail(e.target.value)}
-          className="w-full bg-zinc-900 text-white border border-zinc-700 rounded-lg px-4 py-3 mb-4 focus:outline-none focus:border-amber-500"
+          style={{width:'100%',background:'rgba(255,255,255,0.04)',border:'1px solid rgba(255,255,255,0.12)',borderRadius:8,padding:'14px 16px',color:'#F5F0E8',fontSize:15,outline:'none',marginBottom:12}}
         />
         <input
           type="password"
           placeholder="Password"
           value={password}
           onChange={e => setPassword(e.target.value)}
-          className="w-full bg-zinc-900 text-white border border-zinc-700 rounded-lg px-4 py-3 mb-6 focus:outline-none focus:border-amber-500"
+          style={{width:'100%',background:'rgba(255,255,255,0.04)',border:'1px solid rgba(255,255,255,0.12)',borderRadius:8,padding:'14px 16px',color:'#F5F0E8',fontSize:15,outline:'none',marginBottom:24}}
         />
         <button
           onClick={handleLogin}
           disabled={loading}
-          className="w-full bg-amber-500 hover:bg-amber-400 text-black font-semibold py-3 rounded-lg transition"
+          style={{width:'100%',background:'#C9A84C',color:'#0F2318',border:'none',borderRadius:8,padding:'14px',fontSize:15,fontWeight:600,cursor:'pointer',marginBottom:24}}
         >
           {loading ? 'Signing in...' : 'Sign In'}
         </button>
-        <p className="text-zinc-500 text-sm text-center mt-6">
+        <p style={{textAlign:'center',fontSize:13,color:'rgba(197,194,186,0.5)'}}>
           No account?{' '}
-          <Link href="/signup" className="text-amber-500 hover:underline">Sign up</Link>
+          <Link href="/signup" style={{color:'#C9A84C',textDecoration:'none'}}>Sign up</Link>
         </p>
       </div>
     </div>
