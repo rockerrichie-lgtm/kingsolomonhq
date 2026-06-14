@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 
 export default function Home() {
   const [heroEmail, setHeroEmail] = useState('')
@@ -12,6 +12,18 @@ export default function Home() {
 
   const SUPABASE_URL = 'https://alrwyeenxeuxgkcskkes.supabase.co'
   const SUPABASE_KEY = 'sb_publishable_o1j3z16rgfySe5QnJgMHyQ_iR0sGvme'
+
+  useEffect(() => {
+    if (ctaSuccess) {
+      const script = document.createElement('script')
+      script.src = 'https://assets.calendly.com/assets/external/widget.js'
+      script.async = true
+      document.body.appendChild(script)
+      return () => {
+        document.body.removeChild(script)
+      }
+    }
+  }, [ctaSuccess])
 
   async function saveToSupabase(email: string, source: string) {
     await fetch(`${SUPABASE_URL}/rest/v1/waitlist`, {
@@ -220,7 +232,10 @@ export default function Home() {
             </button>
           </form>
         ) : (
-          <div style={{background:'rgba(61,138,94,0.15)',border:'1px solid rgba(61,138,94,0.3)',borderRadius:8,padding:'14px 20px',color:'#5fc68a',maxWidth:480,margin:'0 auto'}}>✦ You&apos;re on the list. We&apos;ll be in touch soon.</div>
+          <div>
+            <div style={{background:'rgba(61,138,94,0.15)',border:'1px solid rgba(61,138,94,0.3)',borderRadius:8,padding:'14px 20px',color:'#5fc68a',maxWidth:480,margin:'0 auto 24px'}}>✦ You&apos;re on the list. Want to talk sooner? Book a discovery call below.</div>
+            <div className="calendly-inline-widget" data-url="https://calendly.com/hello-kingsolomonhq/30min" style={{minWidth:320,height:700,maxWidth:700,margin:'0 auto'}}></div>
+          </div>
         )}
       </section>
 
