@@ -15,8 +15,12 @@ export default function DashboardPage() {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) { router.push('/login'); return }
       setUser(user)
-      const { data: brands } = await supabase.from('brands').select('*').eq('user_id', user.id).single()
-      if (!brands) { router.push('/brand-setup'); return }
+      const { data: brands, error: brandError } = await supabase
+        .from('brands')
+        .select('*')
+        .eq('user_id', user.id)
+        .maybeSingle()
+      if (brandError || !brands) { router.push('/brand-setup'); return }
       setBrand(brands)
       setLoading(false)
     }

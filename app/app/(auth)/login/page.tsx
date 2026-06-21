@@ -32,7 +32,18 @@ export default function LoginPage() {
     }
 
     // Check if brand is set up
-    const { data: brands } = await supabase.from('brands').select('id').eq('user_id', data.user.id).single()
+    const { data: brands, error: brandError } = await supabase
+      .from('brands')
+      .select('id')
+      .eq('user_id', data.user.id)
+      .maybeSingle()
+
+    if (brandError) {
+      setError('Something went wrong loading your account. Please try again.')
+      setLoading(false)
+      return
+    }
+
     if (!brands) {
       router.push('/brand-setup')
     } else {
