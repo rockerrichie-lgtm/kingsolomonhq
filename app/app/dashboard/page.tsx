@@ -52,6 +52,7 @@ export default function DashboardPage() {
           </div>
         </div>
         <div style={{display:'flex',alignItems:'center',gap:'16px'}}>
+          <a href="/campaign-setup" style={{color:'#0F2318',fontSize:'13px',fontWeight:600,textDecoration:'none',padding:'8px 16px',borderRadius:'8px',background:'#C9A84C'}}>+ New Campaign</a>
           <a href="/brand-setup" style={{color:'#C8C2B6',fontSize:'13px',textDecoration:'none',padding:'8px 16px',borderRadius:'8px',border:'1px solid rgba(255,255,255,0.08)'}}>Brand Settings</a>
           <span style={{color:'#C8C2B6',fontSize:'13px'}}>{user?.email}</span>
           <button onClick={handleSignOut} style={{padding:'8px 16px',borderRadius:'8px',background:'rgba(255,255,255,0.06)',border:'1px solid rgba(255,255,255,0.08)',color:'#F5F0E8',fontSize:'13px',cursor:'pointer'}}>
