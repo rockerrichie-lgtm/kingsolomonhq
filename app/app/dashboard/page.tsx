@@ -282,15 +282,28 @@ export default function DashboardPage() {
                       {KPI_NAMES.map(kpiName => {
                         const compKpi = getCompetitorKpi(comp.id, kpiName)
                         const brandKpi = getBrandKpi(kpiName)
-                        const ahead = compKpi && brandKpi ? compKpi.score > brandKpi.score : false
-                        const behind = compKpi && brandKpi ? compKpi.score < brandKpi.score : false
+                        const MMD = 8
+                        const ZONE_ORDER = ['critical','emerging','contested','established','category_defining']
+                        const diff = compKpi && brandKpi ? compKpi.score - brandKpi.score : 0
+                        const bothHighConfidence = compKpi?.confidence_level === 'high' && brandKpi?.confidence_level === 'high'
+                        const compZoneRank = compKpi ? ZONE_ORDER.indexOf(compKpi.zone) : -1
+                        const brandZoneRank = brandKpi ? ZONE_ORDER.indexOf(brandKpi.zone) : -1
+                        const structurallyAhead = bothHighConfidence && diff >= MMD && compZoneRank > brandZoneRank
+                        const directionalAhead = bothHighConfidence && diff >= MMD && compZoneRank <= brandZoneRank
+                        const withinRange = compKpi && brandKpi && Math.abs(diff) < MMD
+                        const lowConfidence = compKpi && brandKpi && !bothHighConfidence
                         return (
-                          <td key={kpiName} style={{textAlign:'center',padding:'14px 16px',fontSize:'14px',fontWeight: ahead ? 600 : 400,color: ahead ? '#5fc68a' : behind ? 'rgba(197,194,186,0.5)' : '#C8C2B6'}}>
+                          <td key={kpiName} style={{textAlign:'center',padding:'14px 16px',fontSize:'14px',
+                            fontWeight: structurallyAhead ? 600 : 400,
+                            color: structurallyAhead ? '#5fc68a' : directionalAhead ? '#C9A84C' : 'rgba(197,194,186,0.5)'}}>
                             {compKpi ? (
-                              <>
-                                {scoreDisplay(kpiName, compKpi.score)}
-                                {ahead && <span style={{fontSize:'10px',marginLeft:'3px'}}>↑</span>}
-                              </>
+                              <div style={{display:'flex',flexDirection:'column',alignItems:'center',gap:'2px'}}>
+                                <span>{scoreDisplay(kpiName, compKpi.score)}</span>
+                                {structurallyAhead && <span style={{fontSize:'9px',color:'#5fc68a'}}>↑ ahead</span>}
+                                {directionalAhead && <span style={{fontSize:'9px',color:'#C9A84C'}}>~ directional</span>}
+                                {withinRange && <span style={{fontSize:'9px',color:'rgba(197,194,186,0.35)'}}>~ in range</span>}
+                                {lowConfidence && <span style={{fontSize:'9px',color:'rgba(197,194,186,0.35)'}}>⚠ low conf</span>}
+                              </div>
                             ) : '--'}
                           </td>
                         )
