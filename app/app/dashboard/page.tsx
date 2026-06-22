@@ -13,6 +13,12 @@ interface KpiSnapshot {
   movement: number | null
   confidence_level: string
   source: string | null
+  competitor_id: string | null
+}
+
+interface Competitor {
+  id: string
+  name: string
 }
 
 interface Verdict {
@@ -48,10 +54,16 @@ function movementLabel(m: number | null) {
   return { text: '→ Stable', color: '#C9A84C' }
 }
 
+function scoreDisplay(kpiName: KpiName, score: number) {
+  return kpiName === 'buzz' && score > 0 ? `+${score}` : String(score)
+}
+
 export default function DashboardPage() {
   const [user, setUser] = useState<any>(null)
   const [brand, setBrand] = useState<any>(null)
-  const [kpis, setKpis] = useState<KpiSnapshot[]>([])
+  const [brandKpis, setBrandKpis] = useState<KpiSnapshot[]>([])
+  const [competitorKpis, setCompetitorKpis] = useState<KpiSnapshot[]>([])
+  const [competitors, setCompetitors] = useState<Competitor[]>([])
   const [verdict, setVerdict] = useState<Verdict | null>(null)
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
@@ -61,12 +73,25 @@ export default function DashboardPage() {
   const fetchKpis = async (brandId: string) => {
     const { data } = await supabase
       .from('kpi_snapshots')
-      .select('kpi_name, score, zone, movement, confidence_level, source')
+      .select('kpi_name, score, zone, movement, confidence_level, source, competitor_id')
       .eq('brand_id', brandId)
       .eq('snapshot_type', 'brand_level')
       .eq('checkpoint', 'current')
       .order('created_at', { ascending: false })
-    if (data) setKpis(data as KpiSnapshot[])
+
+    if (data) {
+      setBrandKpis(data.filter((r: KpiSnapshot) => !r.competitor_id) as KpiSnapshot[])
+      setCompetitorKpis(data.filter((r: KpiSnapshot) => !!r.competitor_id) as KpiSnapshot[])
+    }
+  }
+
+  const fetchCompetitors = async (brandId: string) => {
+    const { data } = await supabase
+      .from('competitors')
+      .select('id, name')
+      .eq('brand_id', brandId)
+      .order('name')
+    if (data) setCompetitors(data as Competitor[])
   }
 
   const fetchVerdict = async (brandId: string) => {
@@ -94,7 +119,7 @@ export default function DashboardPage() {
         .maybeSingle()
       if (brandError || !brands) { router.push('/brand-setup'); return }
       setBrand(brands)
-      await Promise.all([fetchKpis(brands.id), fetchVerdict(brands.id)])
+      await Promise.all([fetchKpis(brands.id), fetchCompetitors(brands.id), fetchVerdict(brands.id)])
       setLoading(false)
     }
     init()
@@ -103,7 +128,7 @@ export default function DashboardPage() {
   const handleRefresh = async () => {
     if (!brand) return
     setRefreshing(true)
-    await Promise.all([fetchKpis(brand.id), fetchVerdict(brand.id)])
+    await Promise.all([fetchKpis(brand.id), fetchCompetitors(brand.id), fetchVerdict(brand.id)])
     setRefreshing(false)
   }
 
@@ -112,7 +137,9 @@ export default function DashboardPage() {
     router.push('/login')
   }
 
-  const getKpi = (name: KpiName) => kpis.find(k => k.kpi_name === name)
+  const getBrandKpi = (name: KpiName) => brandKpis.find(k => k.kpi_name === name)
+  const getCompetitorKpi = (competitorId: string, kpiName: KpiName) =>
+    competitorKpis.find(k => k.competitor_id === competitorId && k.kpi_name === kpiName)
 
   if (loading) return (
     <div style={{minHeight:'100vh',display:'flex',alignItems:'center',justifyContent:'center',background:'#0F2318'}}>
@@ -122,6 +149,7 @@ export default function DashboardPage() {
 
   return (
     <div style={{minHeight:'100vh',background:'#0F2318'}}>
+      {/* Nav */}
       <nav style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'20px 32px',borderBottom:'1px solid rgba(255,255,255,0.08)'}}>
         <div style={{display:'flex',alignItems:'center',gap:'12px'}}>
           <svg width="28" height="22" viewBox="0 0 56 44" fill="none">
@@ -143,8 +171,9 @@ export default function DashboardPage() {
         </div>
       </nav>
 
-      <div style={{maxWidth:'1000px',margin:'0 auto',padding:'48px 32px'}}>
+      <div style={{maxWidth:'1100px',margin:'0 auto',padding:'48px 32px'}}>
 
+        {/* Brand header */}
         <div style={{textAlign:'center',marginBottom:'40px'}}>
           <svg width="44" height="34" viewBox="0 0 56 44" fill="none" style={{margin:'0 auto 16px'}}>
             <path d="M4 36L12 14L22 26L28 6L34 26L44 14L52 36H4Z" fill="#C9A84C"/>
@@ -161,6 +190,7 @@ export default function DashboardPage() {
           )}
         </div>
 
+        {/* KPI cards */}
         <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:'16px'}}>
           <p style={{color:'#C8C2B6',fontSize:'12px',fontWeight:600,letterSpacing:'0.1em',textTransform:'uppercase'}}>Brand Health — Current</p>
           <button
@@ -172,9 +202,9 @@ export default function DashboardPage() {
           </button>
         </div>
 
-        <div style={{display:'grid',gridTemplateColumns:'repeat(5,1fr)',gap:'14px',marginBottom:'40px'}}>
+        <div style={{display:'grid',gridTemplateColumns:'repeat(5,1fr)',gap:'14px',marginBottom:'32px'}}>
           {KPI_NAMES.map(kpiName => {
-            const kpi = getKpi(kpiName)
+            const kpi = getBrandKpi(kpiName)
             const mv = movementLabel(kpi?.movement ?? null)
             const zoneColor = kpi ? ZONE_COLOR[kpi.zone] : 'rgba(197,194,186,0.4)'
             return (
@@ -183,7 +213,7 @@ export default function DashboardPage() {
                   {kpiName}
                 </div>
                 <div style={{color:'#F5F0E8',fontFamily:'Georgia,serif',fontSize:'36px',fontWeight:'700',lineHeight:1,marginBottom:'8px'}}>
-                  {kpi ? (kpiName === 'buzz' && kpi.score > 0 ? `+${kpi.score}` : kpi.score) : '--'}
+                  {kpi ? scoreDisplay(kpiName, kpi.score) : '--'}
                 </div>
                 {kpi ? (
                   <>
@@ -204,6 +234,76 @@ export default function DashboardPage() {
           })}
         </div>
 
+        {/* Competitor comparison table */}
+        {competitors.length > 0 && (
+          <div style={{background:'rgba(255,255,255,0.04)',border:'1px solid rgba(255,255,255,0.08)',borderRadius:'16px',overflow:'hidden',marginBottom:'32px'}}>
+            <div style={{padding:'16px 24px',borderBottom:'1px solid rgba(255,255,255,0.08)',display:'flex',alignItems:'center',justifyContent:'space-between'}}>
+              <span style={{fontSize:'12px',fontWeight:600,color:'#C8C2B6',textTransform:'uppercase',letterSpacing:'0.1em'}}>Competitor comparison</span>
+              <span style={{fontSize:'11px',color:'rgba(197,194,186,0.4)'}}>Brand health — current</span>
+            </div>
+            <div style={{overflowX:'auto'}}>
+              <table style={{width:'100%',borderCollapse:'collapse',fontSize:'13px'}}>
+                <thead>
+                  <tr style={{background:'rgba(255,255,255,0.02)'}}>
+                    <th style={{textAlign:'left',padding:'12px 24px',fontWeight:600,color:'rgba(197,194,186,0.6)',fontSize:'11px',textTransform:'uppercase',letterSpacing:'0.08em',width:'180px'}}>Brand</th>
+                    {KPI_NAMES.map(k => (
+                      <th key={k} style={{textAlign:'center',padding:'12px 16px',fontWeight:600,color:'rgba(197,194,186,0.6)',fontSize:'11px',textTransform:'uppercase',letterSpacing:'0.08em'}}>{k}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {/* Your brand row */}
+                  <tr style={{borderTop:'1px solid rgba(255,255,255,0.06)',background:'rgba(201,168,76,0.06)'}}>
+                    <td style={{padding:'14px 24px'}}>
+                      <div style={{display:'flex',alignItems:'center',gap:'8px'}}>
+                        <span style={{display:'inline-block',width:'8px',height:'8px',borderRadius:'50%',background:'#C9A84C',flexShrink:0}}></span>
+                        <span style={{color:'#F5F0E8',fontWeight:600,fontSize:'13px'}}>{brand?.brand_name}</span>
+                        <span style={{fontSize:'10px',color:'rgba(197,194,186,0.4)'}}>you</span>
+                      </div>
+                    </td>
+                    {KPI_NAMES.map(kpiName => {
+                      const kpi = getBrandKpi(kpiName)
+                      return (
+                        <td key={kpiName} style={{textAlign:'center',padding:'14px 16px',color:'#F5F0E8',fontWeight:600,fontSize:'14px'}}>
+                          {kpi ? scoreDisplay(kpiName, kpi.score) : '--'}
+                        </td>
+                      )
+                    })}
+                  </tr>
+                  {/* Competitor rows */}
+                  {competitors.map((comp, idx) => (
+                    <tr key={comp.id} style={{borderTop:'1px solid rgba(255,255,255,0.06)'}}>
+                      <td style={{padding:'14px 24px'}}>
+                        <div style={{display:'flex',alignItems:'center',gap:'8px'}}>
+                          <span style={{display:'inline-block',width:'8px',height:'8px',borderRadius:'50%',background:'rgba(197,194,186,0.3)',flexShrink:0}}></span>
+                          <span style={{color:'#C8C2B6',fontSize:'13px'}}>{comp.name}</span>
+                        </div>
+                      </td>
+                      {KPI_NAMES.map(kpiName => {
+                        const compKpi = getCompetitorKpi(comp.id, kpiName)
+                        const brandKpi = getBrandKpi(kpiName)
+                        const ahead = compKpi && brandKpi ? compKpi.score > brandKpi.score : false
+                        const behind = compKpi && brandKpi ? compKpi.score < brandKpi.score : false
+                        return (
+                          <td key={kpiName} style={{textAlign:'center',padding:'14px 16px',fontSize:'14px',fontWeight: ahead ? 600 : 400,color: ahead ? '#5fc68a' : behind ? 'rgba(197,194,186,0.5)' : '#C8C2B6'}}>
+                            {compKpi ? (
+                              <>
+                                {scoreDisplay(kpiName, compKpi.score)}
+                                {ahead && <span style={{fontSize:'10px',marginLeft:'3px'}}>↑</span>}
+                              </>
+                            ) : '--'}
+                          </td>
+                        )
+                      })}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
+        {/* Solomon's Verdict */}
         {verdict ? (
           <div style={{background:'rgba(255,255,255,0.04)',border:'1px solid rgba(255,255,255,0.08)',borderRadius:'16px',padding:'36px 40px'}}>
             <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:'20px'}}>
@@ -214,11 +314,9 @@ export default function DashboardPage() {
                 {new Date(verdict.created_at).toLocaleDateString('en-IN', { day:'numeric', month:'short', year:'numeric' })}
               </span>
             </div>
-
             <p style={{fontFamily:'Georgia,serif',fontSize:'18px',fontWeight:400,color:'#F5F0E8',lineHeight:1.75,fontStyle:'italic',marginBottom:'24px'}}>
               &ldquo;{verdict.narrative}&rdquo;
             </p>
-
             {verdict.top_insights && verdict.top_insights.length > 0 && (
               <div style={{marginBottom:'20px'}}>
                 <p style={{fontSize:'11px',fontWeight:600,color:'#C9A84C',textTransform:'uppercase',letterSpacing:'0.1em',marginBottom:'10px'}}>Top insights</p>
@@ -230,7 +328,6 @@ export default function DashboardPage() {
                 ))}
               </div>
             )}
-
             <div style={{display:'flex',gap:'24px',flexWrap:'wrap',paddingTop:'20px',borderTop:'1px solid rgba(255,255,255,0.06)'}}>
               {verdict.recommended_action && (
                 <div style={{flex:1,minWidth:'200px'}}>
@@ -260,7 +357,7 @@ export default function DashboardPage() {
         ) : (
           <div style={{background:'rgba(255,255,255,0.04)',border:'1px solid rgba(255,255,255,0.08)',borderRadius:'16px',padding:'36px 40px',textAlign:'center'}}>
             <p style={{fontSize:'11px',fontWeight:600,color:'#C9A84C',textTransform:'uppercase',letterSpacing:'0.1em',marginBottom:'12px'}}>⭐ Solomon&#39;s Verdict</p>
-            <p style={{fontSize:'15px',color:'#C8C2B6',lineHeight:1.7}}>Your verdict will appear here once enough brand signal data has been collected. Refresh your scores or create a campaign to start tracking.</p>
+            <p style={{fontSize:'15px',color:'#C8C2B6',lineHeight:1.7}}>Your verdict will appear here once enough brand signal data has been collected.</p>
           </div>
         )}
 
