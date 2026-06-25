@@ -125,7 +125,7 @@ function EyePricing() {
   return (
     <div>
       <div style={{ fontSize: 14, color: CREAM_DIM, textAlign: 'center', maxWidth: 520, margin: '0 auto 28px', lineHeight: 1.75 }}>
-        A personal CX audit , screen-recorded walkthrough of your customer experience with expert commentary and a written report.
+        A personal CX audit. Screen-recorded walkthrough of your customer experience with expert commentary and a written report.
       </div>
       <Grid>
         <div style={cardStyle()}>
@@ -134,9 +134,9 @@ function EyePricing() {
           <BtnGhost text="Book a CX audit" />
           <Price amount="1,499" billing="One-time" saving="per audit" />
           <Divider />
-          <Feat text="Full CX walkthrough , app, web, purchase flow" />
+          <Feat text="Full CX walkthrough: app, web, purchase flow" />
           <Feat text="Screen recording with expert commentary" />
-          <Feat text="Written findings , PDF and PPT" />
+          <Feat text="Written findings: PDF and PPT" />
           <Feat text="Top 5 friction points identified" />
           <Feat text="Delivered in 7 business days" />
         </div>
@@ -144,7 +144,7 @@ function EyePricing() {
         <div style={cardStyle(true)}>
           <Badge text="Most popular" color={DEEP} bg={GOLD} border="none" />
           <div style={{ fontSize: 11, fontWeight: 600, letterSpacing: '0.15em', textTransform: 'uppercase', color: GOLD, marginBottom: 6 }}>Growth</div>
-          <div style={{ fontSize: 14, color: CREAM_DIM, lineHeight: 1.6, marginBottom: 14 }}>Two audits across 6 months , track your CX improvement.</div>
+          <div style={{ fontSize: 14, color: CREAM_DIM, lineHeight: 1.6, marginBottom: 14 }}>Two audits across 6 months to track your CX improvement.</div>
           <BtnPrimary text="Start CX tracking" />
           <Price amount="5,999" color={GOLD} billing="Billed every 6 months" saving="$2,999 per audit · saves $999 vs 2 x Insight" />
           <Divider />
@@ -152,7 +152,7 @@ function EyePricing() {
           <Feat text="Before and after comparison report" />
           <Feat text="Competitor CX benchmarking" />
           <Feat text="Friction point resolution tracking" />
-          <Feat text="Priority scheduling , 5 day delivery" />
+          <Feat text="Priority scheduling, 5-day delivery" />
         </div>
 
         <div style={cardStyle()}>
@@ -201,7 +201,7 @@ function GuidePricing() {
           <Price amount="7,497" color={GOLD} billing="Billed per quarter" saving="$625 per session · 12 sessions + full async" />
           <Divider />
           <Feat text="4 sessions per month (12 per quarter)" color={PURPLE} />
-          <Feat text="Full async , WhatsApp, email, voice" color={PURPLE} />
+          <Feat text="Full async: WhatsApp, email, voice" color={PURPLE} />
           <Feat text="Monthly strategy review document" color={PURPLE} />
           <Feat text="Campaign, NPD, and brand advisory" color={PURPLE} />
           <Feat text="Deck and document reviews" color={PURPLE} />
@@ -214,8 +214,8 @@ function GuidePricing() {
           <BtnGhost text="Start with Command" />
           <Price amount="14,997" billing="Billed per quarter" saving="Weekly sessions · on-call access within 4 hrs" />
           <Divider />
-          <Feat text="Weekly sessions , 13 per quarter" color={PURPLE} />
-          <Feat text="On-call priority response · 4 hrs" color={PURPLE} />
+          <Feat text="13 sessions per quarter" color={PURPLE} />
+          <Feat text="On-call priority response within 4 hrs" color={PURPLE} />
           <Feat text="Unlimited strategy documents" color={PURPLE} />
           <Feat text="Board-level strategy included" color={PURPLE} />
           <Feat text="Quarterly business review with output" color={PURPLE} />
@@ -228,16 +228,16 @@ function GuidePricing() {
 function FAQ({ activeTab }: { activeTab: string }) {
   const questions = activeTab === 'iq' ? [
     ['What is a report?', "A full brand health analysis with all 5 KPI scores, competitor comparison, Solomon's Verdict narrative, recommended action, and risk flags. Delivered as PDF and PPT."],
-    ["What's the difference between Insight and Growth?", 'Insight is a point-in-time snapshot. Growth gives you 6 months of continuous tracking plus two reports , one at month 3 and one at month 6.'],
+    ["What's the difference between Insight and Growth?", 'Insight is a point-in-time snapshot. Growth gives you 6 months of continuous tracking plus two reports · one at month 3 and one at month 6.'],
     ['Why is Command cheaper per report than Insight?', 'Four Insight reports would cost $2,396. Command is $11,196 per year and includes live tracking, unlimited competitors, quarterly reports, and a free annual summary.'],
     ['Do all plans include competitor tracking?', 'Yes. Every plan includes a full competitor landscape. There are no brand or competitor limits on any plan.'],
   ] : activeTab === 'eye' ? [
-    ['What is a CX audit?', "A full walkthrough of your customer experience , app, website, purchase flow, support , delivered as a screen recording with expert commentary plus a written PDF and PPT report."],
-    ['Who conducts the audit?', 'Every audit is conducted personally by John Richard , 9 years of brand and consumer research expertise.'],
-    ['How is Eye different from IQ?', "IQ tracks brand health scores over time. Eye audits the actual customer experience , what it feels like to be your customer."],
+    ['What is a CX audit?', "A full walkthrough of your customer experience · app, website, purchase flow, support · delivered as a screen recording with expert commentary plus a written PDF and PPT report."],
+    ['Who conducts the audit?', 'Every audit is conducted personally by John Richard · 9 years of brand and consumer research expertise.'],
+    ['How is Eye different from IQ?', "IQ tracks brand health scores over time. Eye audits the actual customer experience · what it feels like to be your customer."],
   ] : [
-    ['What does fully embedded mean?', "John is part of your decision-making process , not just a monthly advisor. On-call access, document reviews, strategic input on real decisions as they happen."],
-    ['Is there a minimum commitment?', 'Yes , all Guide tiers have a 3-month minimum. Strategic advisory takes at least 90 days to show results.'],
+    ['What does fully embedded mean?', "John is part of your decision-making process · not just a monthly advisor. On-call access, document reviews, strategic input on real decisions as they happen."],
+    ['Is there a minimum commitment?', 'Yes · all Guide tiers have a 3-month minimum. Strategic advisory takes at least 90 days to show results.'],
     ['Can I combine Guide with IQ or Eye?', 'Yes. Guide clients who also subscribe to IQ get their brand data reviewed as part of every session.'],
   ]
 
