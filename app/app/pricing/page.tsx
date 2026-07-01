@@ -53,15 +53,17 @@ function Divider() {
   return <div style={{ height: 1, background: 'rgba(255,255,255,0.06)', margin: '14px 0' }} />
 }
 
-function BtnPrimary({ text }: { text: string }) {
+function BtnPrimary({ text, plan }: { text: string; plan: string }) {
+  const href = plan === 'connect' ? '/connect' : `/checkout?plan=${plan}`
   return (
-    <a href="/connect" style={{ display: 'block', padding: '10px', borderRadius: 8, textAlign: 'center', fontSize: 13, fontWeight: 600, background: GOLD, color: DEEP, textDecoration: 'none', marginBottom: 16 }}>{text}</a>
+    <a href={href} style={{ display: 'block', padding: '10px', borderRadius: 8, textAlign: 'center', fontSize: 13, fontWeight: 600, background: GOLD, color: DEEP, textDecoration: 'none', marginBottom: 16 }}>{text}</a>
   )
 }
 
-function BtnGhost({ text }: { text: string }) {
+function BtnGhost({ text, plan }: { text: string; plan: string }) {
+  const href = plan === 'connect' ? '/connect' : `/checkout?plan=${plan}`
   return (
-    <a href="/connect" style={{ display: 'block', padding: '10px', borderRadius: 8, textAlign: 'center', fontSize: 13, fontWeight: 600, background: 'transparent', color: CREAM, border: `1px solid ${GB}`, textDecoration: 'none', marginBottom: 16 }}>{text}</a>
+    <a href={href} style={{ display: 'block', padding: '10px', borderRadius: 8, textAlign: 'center', fontSize: 13, fontWeight: 600, background: 'transparent', color: CREAM, border: `1px solid ${GB}`, textDecoration: 'none', marginBottom: 16 }}>{text}</a>
   )
 }
 
@@ -79,7 +81,7 @@ function IQPricing() {
       <div style={cardStyle()}>
         <div style={{ fontSize: 11, fontWeight: 600, letterSpacing: '0.15em', textTransform: 'uppercase', color: GOLD, marginBottom: 6 }}>Insight</div>
         <div style={{ fontSize: 14, color: CREAM_DIM, lineHeight: 1.6, marginBottom: 14 }}>A full point-in-time brand health snapshot.</div>
-        <BtnGhost text="Get a report" />
+        <BtnGhost text="Get a report" plan="insight_iq" />
         <Price amount="599" billing="One-time" saving="per report" />
         <Divider />
         <Feat text="All 5 KPIs tracked" />
@@ -93,7 +95,7 @@ function IQPricing() {
         <Badge text="Most popular" color={DEEP} bg={GOLD} border="none" />
         <div style={{ fontSize: 11, fontWeight: 600, letterSpacing: '0.15em', textTransform: 'uppercase', color: GOLD, marginBottom: 6 }}>Growth</div>
         <div style={{ fontSize: 14, color: CREAM_DIM, lineHeight: 1.6, marginBottom: 14 }}>Continuous tracking with reports every 6 months.</div>
-        <BtnPrimary text="Start tracking" />
+        <BtnPrimary text="Start tracking" plan="growth_iq" />
         <Price amount="3,599" color={GOLD} billing="Billed every 6 months" saving="$1,799 per report · saves $400 vs 2 x Insight" />
         <Divider />
         <Feat text="Continuous 6-month tracking" />
@@ -108,7 +110,7 @@ function IQPricing() {
         <Badge text="Best value per report" color={GREEN} bg="rgba(95,198,138,0.15)" border="1px solid rgba(95,198,138,0.3)" />
         <div style={{ fontSize: 11, fontWeight: 600, letterSpacing: '0.15em', textTransform: 'uppercase', color: GOLD, marginBottom: 6 }}>Command</div>
         <div style={{ fontSize: 14, color: CREAM_DIM, lineHeight: 1.6, marginBottom: 14 }}>Quarterly reports timed to your board cycles.</div>
-        <BtnGhost text="Get quarterly reporting" />
+        <BtnGhost text="Get quarterly reporting" plan="command_iq" />
         <Price amount="2,799" billing="Billed per quarter" saving="$699 per report · saves $1,597 vs 4 x Insight" />
         <Divider />
         <Feat text="Everything in Growth" color={GREEN} />
@@ -131,7 +133,7 @@ function EyePricing() {
         <div style={cardStyle()}>
           <div style={{ fontSize: 11, fontWeight: 600, letterSpacing: '0.15em', textTransform: 'uppercase', color: GOLD, marginBottom: 6 }}>Insight</div>
           <div style={{ fontSize: 14, color: CREAM_DIM, lineHeight: 1.6, marginBottom: 14 }}>One-time CX audit of your brand experience.</div>
-          <BtnGhost text="Book a CX audit" />
+          <BtnGhost text="Book a CX audit" plan="insight_eye" />
           <Price amount="1,499" billing="One-time" saving="per audit" />
           <Divider />
           <Feat text="Full CX walkthrough: app, web, purchase flow" />
@@ -145,7 +147,7 @@ function EyePricing() {
           <Badge text="Most popular" color={DEEP} bg={GOLD} border="none" />
           <div style={{ fontSize: 11, fontWeight: 600, letterSpacing: '0.15em', textTransform: 'uppercase', color: GOLD, marginBottom: 6 }}>Growth</div>
           <div style={{ fontSize: 14, color: CREAM_DIM, lineHeight: 1.6, marginBottom: 14 }}>Two audits across 6 months to track your CX improvement.</div>
-          <BtnPrimary text="Start CX tracking" />
+          <BtnPrimary text="Start CX tracking" plan="growth_eye" />
           <Price amount="5,999" color={GOLD} billing="Billed every 6 months" saving="$2,999 per audit · saves $999 vs 2 x Insight" />
           <Divider />
           <Feat text="Two full CX audits across 6 months" />
@@ -159,7 +161,7 @@ function EyePricing() {
           <Badge text="Best value per audit" color={GREEN} bg="rgba(95,198,138,0.15)" border="1px solid rgba(95,198,138,0.3)" />
           <div style={{ fontSize: 11, fontWeight: 600, letterSpacing: '0.15em', textTransform: 'uppercase', color: GOLD, marginBottom: 6 }}>Command</div>
           <div style={{ fontSize: 14, color: CREAM_DIM, lineHeight: 1.6, marginBottom: 14 }}>Quarterly CX audits timed to your business reviews.</div>
-          <BtnGhost text="Get quarterly audits" />
+          <BtnGhost text="Get quarterly audits" plan="command_eye" />
           <Price amount="4,999" billing="Billed per quarter" saving="$1,249 per audit · saves $3,996 vs 4 x Insight" />
           <Divider />
           <Feat text="Everything in Growth" color={GREEN} />
@@ -183,7 +185,7 @@ function GuidePricing() {
         <div style={cardStyle()}>
           <div style={{ fontSize: 11, fontWeight: 600, letterSpacing: '0.15em', textTransform: 'uppercase', color: GOLD, marginBottom: 6 }}>Clarity</div>
           <div style={{ fontSize: 14, color: CREAM_DIM, lineHeight: 1.6, marginBottom: 14 }}>Structured sessions with async support.</div>
-          <BtnGhost text="Start with Clarity" />
+          <BtnGhost text="Start with Clarity" plan="connect" />
           <Price amount="2,997" billing="Billed per quarter" saving="$500 per session · 6 sessions" />
           <Divider />
           <Feat text="2 structured sessions per month" color={PURPLE} />
@@ -197,7 +199,7 @@ function GuidePricing() {
           <Badge text="Most popular" color={DEEP} bg={GOLD} border="none" />
           <div style={{ fontSize: 11, fontWeight: 600, letterSpacing: '0.15em', textTransform: 'uppercase', color: GOLD, marginBottom: 6 }}>Growth</div>
           <div style={{ fontSize: 14, color: CREAM_DIM, lineHeight: 1.6, marginBottom: 14 }}>Full async access with monthly strategy reviews.</div>
-          <BtnPrimary text="Start with Growth" />
+          <BtnPrimary text="Start with Growth" plan="connect" />
           <Price amount="7,497" color={GOLD} billing="Billed per quarter" saving="$625 per session · 12 sessions + full async" />
           <Divider />
           <Feat text="4 sessions per month (12 per quarter)" color={PURPLE} />
@@ -211,7 +213,7 @@ function GuidePricing() {
           <Badge text="Fully embedded" color={PURPLE} bg="rgba(159,143,239,0.15)" border="1px solid rgba(159,143,239,0.3)" />
           <div style={{ fontSize: 11, fontWeight: 600, letterSpacing: '0.15em', textTransform: 'uppercase', color: GOLD, marginBottom: 6 }}>Command</div>
           <div style={{ fontSize: 14, color: CREAM_DIM, lineHeight: 1.6, marginBottom: 14 }}>On-call strategic partner for board-level decisions.</div>
-          <BtnGhost text="Start with Command" />
+          <BtnGhost text="Start with Command" plan="connect" />
           <Price amount="14,997" billing="Billed per quarter" saving="Weekly sessions · on-call access within 4 hrs" />
           <Divider />
           <Feat text="13 sessions per quarter" color={PURPLE} />
@@ -268,7 +270,6 @@ export default function PricingPage() {
       <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
       <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,700;0,800;1,700&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet" />
 
-      {/* NAV */}
       <nav style={{ position: 'fixed', top: 0, left: 0, right: 0, zIndex: 100, display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '18px 48px', background: 'rgba(15,35,24,0.92)', backdropFilter: 'blur(12px)', borderBottom: `1px solid ${GB}` }}>
         <a href="/" style={{ display: 'flex', alignItems: 'center', gap: 10, textDecoration: 'none' }}>
           <svg width="26" height="20" viewBox="0 0 56 44" fill="none"><path d="M4 36L12 14L22 26L28 6L34 26L44 14L52 36H4Z" fill="#C9A84C"/><rect x="4" y="36" width="48" height="6" rx="2" fill="#A07830"/></svg>
@@ -284,14 +285,12 @@ export default function PricingPage() {
         </div>
       </nav>
 
-      {/* HERO */}
       <section style={{ padding: '120px 24px 48px', textAlign: 'center' }}>
         <p style={{ fontSize: 11, fontWeight: 600, letterSpacing: '0.18em', textTransform: 'uppercase', color: GOLD, marginBottom: 16 }}>Pricing</p>
         <h1 style={{ fontFamily: 'Playfair Display,serif', fontSize: 52, fontWeight: 800, color: CREAM, lineHeight: 1.08, marginBottom: 16 }}>Simple pricing.<br />Real intelligence.</h1>
         <p style={{ fontSize: 14, color: CREAM_DIM, maxWidth: 440, margin: '0 auto', lineHeight: 1.75 }}>Start with a single report to see what we find. Stay for the intelligence that keeps your brand ahead.</p>
       </section>
 
-      {/* TABS */}
       <div style={{ display: 'flex', gap: 4, background: GLASS, border: `1px solid ${GB}`, borderRadius: 10, padding: 4, maxWidth: 520, margin: '0 auto 40px' }}>
         {([['iq', "Solomon's IQ", 'Brand intelligence'], ['eye', "Solomon's Eye", 'CX audit'], ['guide', "Solomon's Guide", 'Strategic advisory']] as const).map(([tab, name, sub]) => (
           <button key={tab} onClick={() => setActiveTab(tab)} style={{ flex: 1, padding: '10px 12px', borderRadius: 8, border: 'none', cursor: 'pointer', background: activeTab === tab ? GOLD : 'transparent', color: activeTab === tab ? DEEP : CREAM_DIM, fontSize: 12, fontWeight: 600, transition: 'all 0.15s', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>
@@ -301,17 +300,14 @@ export default function PricingPage() {
         ))}
       </div>
 
-      {/* CARDS */}
       <section style={{ padding: '0 24px 48px', maxWidth: 1100, margin: '0 auto' }}>
         {activeTab === 'iq' ? <IQPricing /> : activeTab === 'eye' ? <EyePricing /> : <GuidePricing />}
       </section>
 
-      {/* FAQ */}
       <section style={{ padding: '0 24px 48px', maxWidth: 1100, margin: '0 auto' }}>
         <FAQ activeTab={activeTab} />
       </section>
 
-      {/* CTA */}
       <section style={{ padding: '60px 24px 80px', textAlign: 'center', borderTop: `1px solid ${GB}` }}>
         <h2 style={{ fontFamily: 'Playfair Display,serif', fontSize: 36, fontWeight: 700, color: CREAM, marginBottom: 14 }}>
           {activeTab === 'guide' ? <>Not sure which tier fits?<br />Let&apos;s talk it through.</> : <>Start with one report.<br />Stay for the intelligence.</>}
@@ -323,7 +319,6 @@ export default function PricingPage() {
         <p style={{ marginTop: 12, fontSize: 12, color: 'rgba(197,194,186,0.35)' }}>Discovery call is free. No commitment.</p>
       </section>
 
-      {/* FOOTER */}
       <footer style={{ borderTop: `1px solid ${GB}`, padding: '32px 48px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 16 }}>
         <div style={{ fontFamily: 'Playfair Display,serif', fontSize: 15, fontWeight: 700, color: CREAM, letterSpacing: '0.08em' }}>KING SOLOMON</div>
         <div style={{ fontSize: 12, color: 'rgba(197,194,186,0.35)' }}>2026 King Solomon · kingsolomonhq.com · Bengaluru, India</div>
