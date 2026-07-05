@@ -294,7 +294,7 @@ export default function PricingPage() {
         <p style={{fontSize:15,color:BODY_TEXT,maxWidth:400,margin:'0 auto 24px',lineHeight:1.75}}>Start with a single report. Stay for the intelligence that keeps your brand ahead.</p>
         <div style={{display:'flex',gap:4,background:'#f5f5f5',borderRadius:10,padding:4,maxWidth:480,margin:'0 auto'}}>
           {([['iq',"Solomon's IQ",'Brand intelligence'],['eye',"Solomon's Eye",'CX audit'],['guide',"Solomon's Guide",'Strategic advisory']] as const).map(([tab,name,sub]) => (
-            <button key={tab} onClick={() => setActiveTab(tab)} style={{flex:1,padding:'9px 10px',borderRadius:7,border:'none',cursor:'pointer',background:activeTab===tab?WHITE:transparent,color:activeTab===tab?DARK:'#888',fontSize:12,fontWeight:activeTab===tab?600:400,transition:'all 0.15s',display:'flex',flexDirection:'column',alignItems:'center',gap:2,fontFamily:'Inter,sans-serif'}}>
+            <button key={tab} onClick={() => setActiveTab(tab)} style={{flex:1,padding:'9px 10px',borderRadius:7,border:'none',cursor:'pointer',background:activeTab===tab?WHITE:'transparent',color:activeTab===tab?DARK:'#888',fontSize:12,fontWeight:activeTab===tab?600:400,transition:'all 0.15s',display:'flex',flexDirection:'column',alignItems:'center',gap:2,fontFamily:'Inter,sans-serif'}}>
               <span>{name}</span>
               <span style={{fontSize:10,fontWeight:400,opacity:0.6}}>{sub}</span>
             </button>
