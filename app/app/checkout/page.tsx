@@ -62,7 +62,7 @@ const PLANS: Record<string, {
   growth_eye: {
     label: "Solomon's Eye · Growth",
     product: "Solomon's Eye",
-billing: 'Billed every 6 months',
+    billing: 'Billed every 6 months',
     amount_inr: 569900,
     amount_usd: 5999,
     saving: 'Saves $999 vs 2x Insight audits',
@@ -89,10 +89,12 @@ function CheckoutContent() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [user, setUser] = useState<{ id: string; email: string } | null>(null)
+  const [authChecked, setAuthChecked] = useState(false)
   const [scriptLoaded, setScriptLoaded] = useState(false)
 
+  // AUTH GUARD — redirect to login if not signed in
   useEffect(() => {
-    const getUser = async () => {
+    const checkAuth = async () => {
       const supabase = createClient()
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) {
@@ -100,8 +102,9 @@ function CheckoutContent() {
         return
       }
       setUser({ id: user.id, email: user.email || '' })
+      setAuthChecked(true)
     }
-    getUser()
+    checkAuth()
   }, [planKey, router])
 
   useEffect(() => {
@@ -111,6 +114,13 @@ function CheckoutContent() {
     document.body.appendChild(script)
     return () => { document.body.removeChild(script) }
   }, [])
+
+  // Show nothing while auth check is in progress
+  if (!authChecked) return (
+    <div style={{minHeight:'100vh',background:WHITE,display:'flex',alignItems:'center',justifyContent:'center'}}>
+      <div style={{fontSize:14,color:BODY_TEXT}}>Loading...</div>
+    </div>
+  )
 
   if (!plan) {
     return (
@@ -220,7 +230,7 @@ function CheckoutContent() {
       {/* BODY — white */}
       <div style={{maxWidth:900,margin:'0 auto',padding:'32px 24px',display:'grid',gridTemplateColumns:'1fr 360px',gap:32,alignItems:'start'}}>
 
-        {/* LEFT — order details */}
+        {/* LEFT */}
         <div>
           <div style={{background:CARD_BG,border:'1px solid rgba(201,168,76,0.2)',borderRadius:12,padding:'20px 24px',marginBottom:20}}>
             <div style={{display:'flex',alignItems:'baseline',gap:4,marginBottom:4}}>
@@ -244,17 +254,13 @@ function CheckoutContent() {
           </div>
         </div>
 
-        {/* RIGHT — payment */}
+        {/* RIGHT */}
         <div style={{background:WHITE,border:`1px solid ${BORDER}`,borderRadius:12,padding:'24px'}}>
           <div style={{fontSize:11,fontWeight:600,letterSpacing:'0.15em',textTransform:'uppercase',color:GOLD,marginBottom:16}}>Payment</div>
 
-          {user ? (
-            <div style={{fontSize:13,color:BODY_TEXT,marginBottom:16,padding:'10px 12px',background:CARD_BG,borderRadius:8,border:`1px solid ${BORDER}`}}>
-              Paying as <strong style={{color:DARK}}>{user.email}</strong>
-            </div>
-          ) : (
-            <div style={{fontSize:13,color:BODY_TEXT,marginBottom:16}}>Checking your account...</div>
-          )}
+          <div style={{fontSize:13,color:BODY_TEXT,marginBottom:16,padding:'10px 12px',background:CARD_BG,borderRadius:8,border:`1px solid ${BORDER}`}}>
+            Paying as <strong style={{color:DARK}}>{user?.email}</strong>
+          </div>
 
           <div style={{fontSize:13,color:BODY_TEXT,marginBottom:16,lineHeight:1.6}}>
             You will be redirected to Razorpay's secure checkout. Pay by card, UPI, net banking, or wallet.
@@ -273,7 +279,7 @@ function CheckoutContent() {
 
           <button
             onClick={handlePayment}
-            disabled={loading || !user || !scriptLoaded}
+            disabled={loading || !scriptLoaded}
             style={{width:'100%',padding:'13px',background:loading?'rgba(201,168,76,0.5)':GOLD,color:DEEP,border:'none',borderRadius:8,fontSize:14,fontWeight:700,cursor:loading?'not-allowed':'pointer',fontFamily:'Inter,sans-serif',marginBottom:12}}
           >
             {loading ? 'Opening checkout...' : `Pay ${displayAmount}`}
