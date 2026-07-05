@@ -53,7 +53,6 @@ function ConfirmationContent() {
       {/* BODY — white */}
       <div style={{background:WHITE,minHeight:'calc(100vh - 120px)',display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',padding:'48px 24px',textAlign:'center'}}>
 
-        {/* Check icon */}
         <div style={{width:60,height:60,borderRadius:'50%',background:'rgba(95,198,138,0.12)',border:'2px solid rgba(95,198,138,0.3)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:28,color:GREEN,marginBottom:20}}>
           ✓
         </div>
@@ -68,23 +67,21 @@ function ConfirmationContent() {
           {plan.product} · {plan.name} is now active.
         </p>
 
-        {/* Next steps */}
         <div style={{background:CARD_BG,border:'1px solid rgba(201,168,76,0.2)',borderRadius:12,padding:'20px 28px',maxWidth:480,width:'100%',textAlign:'left',marginBottom:24}}>
           <p style={{fontSize:11,fontWeight:600,letterSpacing:'0.12em',textTransform:'uppercase',color:GOLD,marginBottom:10}}>What happens next</p>
           <p style={{fontSize:15,color:BODY_TEXT,lineHeight:1.75}}>{plan.next}</p>
         </div>
 
-        {/* Payment reference */}
         {paymentId && (
           <p style={{fontSize:12,color:BODY_TEXT,marginBottom:28}}>
             Payment reference: {paymentId}
           </p>
         )}
 
-        {/* CTAs */}
+        {/* CTA — goes to brand-setup first time */}
         <div style={{display:'flex',gap:12,justifyContent:'center',flexWrap:'wrap'}}>
-          <a href="/dashboard" style={{display:'inline-block',background:GOLD,color:DEEP,fontSize:14,fontWeight:600,padding:'12px 24px',borderRadius:8}}>
-            Go to dashboard
+          <a href="/brand-setup" style={{display:'inline-block',background:GOLD,color:DEEP,fontSize:14,fontWeight:600,padding:'12px 24px',borderRadius:8}}>
+            Set up my brand →
           </a>
           <a href="/connect" style={{display:'inline-block',background:WHITE,color:DARK,fontSize:14,fontWeight:500,padding:'12px 24px',borderRadius:8,border:`1px solid ${BORDER}`}}>
             Connect with us
