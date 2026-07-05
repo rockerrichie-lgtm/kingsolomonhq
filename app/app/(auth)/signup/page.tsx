@@ -21,7 +21,7 @@ export default function SignupPage() {
       email, 
       password,
       options: {
-        emailRedirectTo: 'https://kingsolomonhq.com/login'
+        emailRedirectTo: 'https://kingsolomonhq.com/demo'
       }
     })
     

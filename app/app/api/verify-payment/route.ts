@@ -9,11 +9,7 @@ const supabase = createClient(
 
 export async function POST(req: NextRequest) {
   try {
-    const {
-      razorpay_order_id,
-      razorpay_payment_id,
-      razorpay_signature,
-    } = await req.json()
+    const { razorpay_order_id, razorpay_payment_id, razorpay_signature } = await req.json()
 
     if (!razorpay_order_id || !razorpay_payment_id || !razorpay_signature) {
       return NextResponse.json({ error: 'Missing payment details' }, { status: 400 })
@@ -25,32 +21,19 @@ export async function POST(req: NextRequest) {
       .update(body)
       .digest('hex')
 
-    const isValid = expectedSignature === razorpay_signature
-
-    if (!isValid) {
-      await supabase
-        .from('orders')
-        .update({ status: 'failed' })
-        .eq('razorpay_order_id', razorpay_order_id)
-
+    if (expectedSignature !== razorpay_signature) {
+      await supabase.from('orders').update({ status: 'failed' }).eq('razorpay_order_id', razorpay_order_id)
       return NextResponse.json({ error: 'Payment verification failed' }, { status: 400 })
     }
 
     const { data: order, error: updateError } = await supabase
       .from('orders')
-      .update({
-        status: 'paid',
-        razorpay_payment_id,
-        razorpay_signature,
-      })
+      .update({ status: 'paid', razorpay_payment_id, razorpay_signature })
       .eq('razorpay_order_id', razorpay_order_id)
       .select()
       .single()
 
-    if (updateError) {
-      console.error('Order update error:', updateError)
-      return NextResponse.json({ error: 'Failed to update order' }, { status: 500 })
-    }
+    if (updateError) return NextResponse.json({ error: 'Failed to update order' }, { status: 500 })
 
     return NextResponse.json({
       success: true,
