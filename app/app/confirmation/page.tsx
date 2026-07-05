@@ -7,9 +7,13 @@ const GOLD = '#C9A84C'
 const DEEP = '#0F2318'
 const CREAM = '#F5F0E8'
 const CREAM_DIM = '#C8C2B6'
+const WHITE = '#ffffff'
+const DARK = '#1a1a1a'
+const BODY_TEXT = '#444444'
+const BORDER = '#f0f0f0'
+const MID_GREEN = '#1F4A2F'
+const CARD_BG = '#FDFAF3'
 const GREEN = '#5fc68a'
-const GB = 'rgba(255,255,255,0.08)'
-const GLASS = 'rgba(255,255,255,0.04)'
 
 const PLAN_LABELS: Record<string, { name: string; product: string; next: string }> = {
   insight_iq:  { name: 'IQ · Insight',  product: "Solomon's IQ",  next: 'Your report will be delivered within 5 business days. We will email you at the address used at checkout.' },
@@ -30,53 +34,73 @@ function ConfirmationContent() {
     <>
       <style>{`
         *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-        body { background: ${DEEP}; color: ${CREAM}; font-family: 'Inter', sans-serif; -webkit-font-smoothing: antialiased; min-height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+        body { background: ${WHITE}; color: ${DARK}; font-family: 'Inter', sans-serif; -webkit-font-smoothing: antialiased; }
+        a { text-decoration: none; }
       `}</style>
       <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700;800&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet" />
 
-      <div style={{ maxWidth: 520, width: '100%', padding: '0 24px', textAlign: 'center' }}>
-        <div style={{ fontSize: 48, color: GOLD, marginBottom: 20 }}>♛</div>
+      {/* NAV — dark green */}
+      <nav style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'14px 48px',background:DEEP,borderBottom:'1px solid rgba(255,255,255,0.06)'}}>
+        <a href="/" style={{display:'flex',alignItems:'center',gap:10}}>
+          <svg width="24" height="19" viewBox="0 0 56 44" fill="none"><path d="M4 36L12 14L22 26L28 6L34 26L44 14L52 36H4Z" fill="#C9A84C"/><rect x="4" y="36" width="48" height="6" rx="2" fill="#A07830"/></svg>
+          <div style={{display:'flex',flexDirection:'column',lineHeight:1.1}}>
+            <span style={{fontFamily:'Playfair Display,serif',fontSize:14,fontWeight:700,color:CREAM,letterSpacing:'0.1em'}}>KING SOLOMON</span>
+            <span style={{fontSize:10,color:GOLD}}>Consumer intelligence that tells you why.</span>
+          </div>
+        </a>
+      </nav>
 
-        <div style={{ width: 56, height: 56, borderRadius: '50%', background: 'rgba(95,198,138,0.15)', border: '2px solid rgba(95,198,138,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 20px', fontSize: 24, color: GREEN }}>
+      {/* BODY — white */}
+      <div style={{background:WHITE,minHeight:'calc(100vh - 120px)',display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',padding:'48px 24px',textAlign:'center'}}>
+
+        {/* Check icon */}
+        <div style={{width:60,height:60,borderRadius:'50%',background:'rgba(95,198,138,0.12)',border:'2px solid rgba(95,198,138,0.3)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:28,color:GREEN,marginBottom:20}}>
           ✓
         </div>
 
-        <div style={{ fontSize: 11, fontWeight: 600, letterSpacing: '0.15em', textTransform: 'uppercase', color: GOLD, marginBottom: 10 }}>
-          Payment confirmed
-        </div>
+        <p style={{fontSize:11,fontWeight:600,letterSpacing:'0.18em',textTransform:'uppercase',color:GOLD,marginBottom:10}}>Payment confirmed</p>
 
-        <h1 style={{ fontFamily: 'Playfair Display,serif', fontSize: 32, fontWeight: 700, color: CREAM, marginBottom: 8, lineHeight: 1.2 }}>
-          You're in.
+        <h1 style={{fontFamily:'Playfair Display,serif',fontSize:25,fontWeight:700,color:DARK,marginBottom:8,lineHeight:1.2}}>
+          You are in.
         </h1>
 
-        <div style={{ fontSize: 14, color: CREAM_DIM, marginBottom: 28, lineHeight: 1.75 }}>
+        <p style={{fontSize:15,color:BODY_TEXT,marginBottom:28,lineHeight:1.75}}>
           {plan.product} · {plan.name} is now active.
+        </p>
+
+        {/* Next steps */}
+        <div style={{background:CARD_BG,border:'1px solid rgba(201,168,76,0.2)',borderRadius:12,padding:'20px 28px',maxWidth:480,width:'100%',textAlign:'left',marginBottom:24}}>
+          <p style={{fontSize:11,fontWeight:600,letterSpacing:'0.12em',textTransform:'uppercase',color:GOLD,marginBottom:10}}>What happens next</p>
+          <p style={{fontSize:15,color:BODY_TEXT,lineHeight:1.75}}>{plan.next}</p>
         </div>
 
-        <div style={{ background: GLASS, border: `1px solid ${GB}`, borderRadius: 12, padding: '20px 24px', marginBottom: 24, textAlign: 'left' }}>
-          <div style={{ fontSize: 11, fontWeight: 600, letterSpacing: '0.12em', textTransform: 'uppercase', color: GOLD, marginBottom: 12 }}>What happens next</div>
-          <div style={{ fontSize: 13, color: CREAM_DIM, lineHeight: 1.75 }}>{plan.next}</div>
-        </div>
-
+        {/* Payment reference */}
         {paymentId && (
-          <div style={{ fontSize: 11, color: 'rgba(197,194,186,0.4)', marginBottom: 28 }}>
+          <p style={{fontSize:12,color:BODY_TEXT,marginBottom:28}}>
             Payment reference: {paymentId}
-          </div>
+          </p>
         )}
 
-        <div style={{ display: 'flex', gap: 12, justifyContent: 'center', flexWrap: 'wrap' }}>
-          <a href="/dashboard" style={{ display: 'inline-block', background: GOLD, color: DEEP, fontSize: 13, fontWeight: 600, padding: '11px 24px', borderRadius: 8, textDecoration: 'none' }}>
+        {/* CTAs */}
+        <div style={{display:'flex',gap:12,justifyContent:'center',flexWrap:'wrap'}}>
+          <a href="/dashboard" style={{display:'inline-block',background:GOLD,color:DEEP,fontSize:14,fontWeight:600,padding:'12px 24px',borderRadius:8}}>
             Go to dashboard
           </a>
-          <a href="/connect" style={{ display: 'inline-block', background: 'transparent', color: CREAM, fontSize: 13, fontWeight: 500, padding: '11px 24px', borderRadius: 8, textDecoration: 'none', border: `1px solid ${GB}` }}>
+          <a href="/connect" style={{display:'inline-block',background:WHITE,color:DARK,fontSize:14,fontWeight:500,padding:'12px 24px',borderRadius:8,border:`1px solid ${BORDER}`}}>
             Connect with us
           </a>
         </div>
 
-        <div style={{ marginTop: 28, fontSize: 11, color: 'rgba(197,194,186,0.35)', lineHeight: 1.6 }}>
+        <p style={{marginTop:24,fontSize:12,color:BODY_TEXT,lineHeight:1.6}}>
           Questions? Email support@kingsolomonhq.com — we respond within 4 hours on weekdays.
-        </div>
+        </p>
       </div>
+
+      {/* FOOTER — dark green */}
+      <footer style={{background:DEEP,borderTop:'1px solid rgba(255,255,255,0.06)',padding:'24px 48px',display:'flex',alignItems:'center',justifyContent:'space-between',flexWrap:'wrap',gap:14}}>
+        <div style={{fontFamily:'Playfair Display,serif',fontSize:14,fontWeight:700,color:CREAM,letterSpacing:'0.08em'}}>KING SOLOMON</div>
+        <div style={{fontSize:12,color:'rgba(200,194,182,0.35)'}}>2026 King Solomon · kingsolomonhq.com · Bengaluru, India</div>
+      </footer>
     </>
   )
 }
@@ -84,7 +108,7 @@ function ConfirmationContent() {
 export default function ConfirmationPage() {
   return (
     <Suspense fallback={
-      <div style={{ background: '#0F2318', color: '#F5F0E8', minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14 }}>
+      <div style={{background:WHITE,minHeight:'100vh',display:'flex',alignItems:'center',justifyContent:'center',fontSize:14,color:BODY_TEXT}}>
         Loading...
       </div>
     }>
