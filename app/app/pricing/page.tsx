@@ -12,7 +12,6 @@ const BORDER = '#f0f0f0'
 const MID_GREEN = '#1F4A2F'
 const CARD_BG = '#FDFAF3'
 const PURPLE = '#9F8FEF'
-const GB = 'rgba(255,255,255,0.08)'
 
 function BtnPrimary({ text, plan }: { text: string; plan: string }) {
   const href = plan === 'connect' ? '/connect' : `/checkout?plan=${plan}`
@@ -90,7 +89,6 @@ function IQPricing() {
         <Feat text="PDF and PPT in 5 days" />
         <Feat text="Upgrade credit to Growth" />
       </Card>
-
       <Card featured>
         <Badge text="Most popular" color={DEEP} bg={GOLD} border="none" />
         <Lbl text="Growth" />
@@ -105,9 +103,8 @@ function IQPricing() {
         <Feat text="Month 6 full report PDF and PPT" />
         <Feat text="Campaign attribution tracking" />
       </Card>
-
       <Card>
-        <Badge text="Best value per report" color={MID_GREEN} bg="rgba(31,74,47,0.08)" border={`1px solid rgba(31,74,47,0.2)`} />
+        <Badge text="Best value per report" color={MID_GREEN} bg="rgba(31,74,47,0.08)" border="1px solid rgba(31,74,47,0.2)" />
         <Lbl text="Command" />
         <div style={{fontSize:14,color:BODY_TEXT,marginBottom:14,lineHeight:1.6}}>Quarterly reports timed to your board cycles.</div>
         <BtnGhost text="Get quarterly reporting" plan="command_iq" />
@@ -142,7 +139,6 @@ function EyePricing() {
           <Feat text="Top 5 friction points identified" />
           <Feat text="Delivered in 7 business days" />
         </Card>
-
         <Card featured>
           <Badge text="Most popular" color={DEEP} bg={GOLD} border="none" />
           <Lbl text="Growth" />
@@ -156,9 +152,8 @@ function EyePricing() {
           <Feat text="Friction point resolution tracking" />
           <Feat text="Priority scheduling, 5-day delivery" />
         </Card>
-
         <Card>
-          <Badge text="Best value per audit" color={MID_GREEN} bg="rgba(31,74,47,0.08)" border={`1px solid rgba(31,74,47,0.2)`} />
+          <Badge text="Best value per audit" color={MID_GREEN} bg="rgba(31,74,47,0.08)" border="1px solid rgba(31,74,47,0.2)" />
           <Lbl text="Command" />
           <div style={{fontSize:14,color:BODY_TEXT,marginBottom:14,lineHeight:1.6}}>Quarterly CX audits timed to your business reviews.</div>
           <BtnGhost text="Get quarterly audits" plan="command_eye" />
@@ -194,7 +189,6 @@ function GuidePricing() {
           <Feat text="Session notes and action items" color={PURPLE} />
           <Feat text="Auto-renews quarterly" color={PURPLE} />
         </Card>
-
         <Card featured>
           <Badge text="Most popular" color={DEEP} bg={GOLD} border="none" />
           <Lbl text="Growth" color={PURPLE} />
@@ -208,7 +202,6 @@ function GuidePricing() {
           <Feat text="Campaign, NPD, and brand advisory" color={PURPLE} />
           <Feat text="Deck and document reviews" color={PURPLE} />
         </Card>
-
         <Card>
           <Badge text="Fully embedded" color={PURPLE} bg="rgba(159,143,239,0.08)" border="1px solid rgba(159,143,239,0.2)" />
           <Lbl text="Command" color={PURPLE} />
@@ -292,11 +285,11 @@ export default function PricingPage() {
         <p style={{fontSize:11,fontWeight:600,letterSpacing:'0.18em',textTransform:'uppercase',color:GOLD,marginBottom:14}}>Pricing</p>
         <h1 style={{fontFamily:'Playfair Display,serif',fontSize:25,fontWeight:800,lineHeight:1.2,color:DARK,marginBottom:12}}>Simple pricing.<br/>Real intelligence.</h1>
         <p style={{fontSize:15,color:BODY_TEXT,maxWidth:400,margin:'0 auto 24px',lineHeight:1.75}}>Start with a single report. Stay for the intelligence that keeps your brand ahead.</p>
-        <div style={{display:'flex',gap:4,background:'#f5f5f5',borderRadius:10,padding:4,maxWidth:480,margin:'0 auto'}}>
+        <div style={{display:'flex',gap:4,background:DEEP,borderRadius:10,padding:4,maxWidth:480,margin:'0 auto'}}>
           {([['iq',"Solomon's IQ",'Brand intelligence'],['eye',"Solomon's Eye",'CX audit'],['guide',"Solomon's Guide",'Strategic advisory']] as const).map(([tab,name,sub]) => (
-            <button key={tab} onClick={() => setActiveTab(tab)} style={{flex:1,padding:'9px 10px',borderRadius:7,border:'none',cursor:'pointer',background:activeTab===tab?WHITE:'transparent',color:activeTab===tab?DARK:'#888',fontSize:12,fontWeight:activeTab===tab?600:400,transition:'all 0.15s',display:'flex',flexDirection:'column',alignItems:'center',gap:2,fontFamily:'Inter,sans-serif'}}>
+            <button key={tab} onClick={() => setActiveTab(tab)} style={{flex:1,padding:'9px 10px',borderRadius:7,border:'none',cursor:'pointer',background:activeTab===tab?'rgba(201,168,76,0.15)':'transparent',color:activeTab===tab?GOLD:CREAM_DIM,fontSize:12,fontWeight:activeTab===tab?600:400,transition:'all 0.15s',display:'flex',flexDirection:'column',alignItems:'center',gap:2,fontFamily:'Inter,sans-serif'}}>
               <span>{name}</span>
-              <span style={{fontSize:10,fontWeight:400,opacity:0.6}}>{sub}</span>
+              <span style={{fontSize:10,fontWeight:400,opacity:0.7}}>{sub}</span>
             </button>
           ))}
         </div>
