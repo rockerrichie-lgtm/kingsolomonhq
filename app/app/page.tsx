@@ -43,7 +43,7 @@ export default function Home() {
 
       {/* HERO — white */}
       <section style={{background:WHITE,textAlign:'center',padding:'120px 24px 48px',borderBottom:`1px solid ${BORDER}`}}>
-        <svg width="56" height="44" viewBox="0 0 80 64" fill="none" style={{marginBottom:16}}><path d="M5 52L16 18L32 36L40 6L48 36L64 18L75 52H5Z" fill="#C9A84C"/><rect x="5" y="52" width="70" height="9" rx="3" fill="#A07830"/></svg>
+        <svg width="56" height="44" viewBox="0 0 80 64" fill="none" style={{display:'block',margin:'0 auto 16px'}}><path d="M5 52L16 18L32 36L40 6L48 36L64 18L75 52H5Z" fill="#C9A84C"/><rect x="5" y="52" width="70" height="9" rx="3" fill="#A07830"/></svg>
         <p style={{fontSize:11,fontWeight:600,letterSpacing:'0.18em',textTransform:'uppercase',color:GOLD,marginBottom:14}}>King Solomon</p>
         <h1 style={{fontFamily:'Playfair Display,serif',fontSize:25,fontWeight:800,lineHeight:1.2,color:DARK,maxWidth:600,margin:'0 auto 16px'}}>
           Your brand tracker tells you <em style={{color:GOLD}}>what.</em><br/>We tell you <em style={{color:MID_GREEN}}>why.</em>
@@ -62,7 +62,7 @@ export default function Home() {
         <p style={{fontSize:11,fontWeight:600,letterSpacing:'0.18em',textTransform:'uppercase',color:GOLD,textAlign:'center',marginBottom:24}}>Three ways we help</p>
         <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(300px,1fr))',gap:16}}>
           {[
-            {label:"Solomon's IQ",labelColor:GOLD,title:'Brand intelligence',desc:'Real-time scores across Awareness, Consideration, Usage, Imagery and Buzz. Updated every 2 to 6 hours. A fraction of traditional trackers.',price:'From $599, one-time report',priceColor:GOLD,featured:false},
+            {label:"Solomon's IQ",labelColor:GOLD,title:'Brand intelligence',desc:"Real-time scores across Awareness, Consideration, Usage, Imagery and Buzz. Updated every 2 to 6 hours. A fraction of traditional trackers.",price:'From $599, one-time report',priceColor:GOLD,featured:false},
             {label:"Solomon's Eye",labelColor:MID_GREEN,title:'CX audit',desc:'A personal walkthrough of your customer experience, screen-recorded with expert commentary and a written report.',price:'From $1,499, one-time audit',priceColor:MID_GREEN,featured:true},
             {label:"Solomon's Guide",labelColor:'#888',title:'Strategic advisory',desc:'John works with you through your entire growth journey. Fully embedded, on-call, invested in your outcome.',price:'From $2,997 per quarter',priceColor:'#888',featured:false},
           ].map(s => (
