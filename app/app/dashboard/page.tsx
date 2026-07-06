@@ -46,6 +46,7 @@ interface KpiSnapshot {
   sub_bucket_attacking?: number | null
   sources_count?: number | null
   last_updated?: string | null
+  status?: string
 }
 
 interface Competitor { id: string; name: string }
@@ -181,10 +182,11 @@ export default function DashboardPage() {
   const fetchKpis = async (brandId: string, window: TimeWindow) => {
     const { data } = await supabase
       .from('kpi_snapshots')
-      .select('kpi_name, score, zone, movement, confidence_level, source, competitor_id, sub_bucket_searched, sub_bucket_found, sub_bucket_shown, sub_bucket_comparing, sub_bucket_trialling, sub_bucket_interested, sub_bucket_repeat, sub_bucket_switchers, sub_bucket_lost, sub_bucket_praising, sub_bucket_questioning, sub_bucket_attacking, sources_count, last_updated')
+      .select('kpi_name, score, zone, movement, confidence_level, source, competitor_id, sub_bucket_searched, sub_bucket_found, sub_bucket_shown, sub_bucket_comparing, sub_bucket_trialling, sub_bucket_interested, sub_bucket_repeat, sub_bucket_switchers, sub_bucket_lost, sub_bucket_praising, sub_bucket_questioning, sub_bucket_attacking, sources_count, last_updated, status')
       .eq('brand_id', brandId)
       .eq('snapshot_type', 'brand_level')
       .eq('checkpoint', window)
+      .eq('status', 'published')
       .order('created_at', { ascending: false })
     if (data) {
       setBrandKpis(data.filter((r: KpiSnapshot) => !r.competitor_id) as KpiSnapshot[])
@@ -211,7 +213,6 @@ export default function DashboardPage() {
   }
 
   const fetchEyeData = async (brandId: string, userId: string) => {
-    // Check if user has paid for Eye
     const { data: order } = await supabase
       .from('orders')
       .select('id')
@@ -221,23 +222,21 @@ export default function DashboardPage() {
       .maybeSingle()
     if (order) {
       setEyePaid(true)
-      // Fetch latest audit
       const { data: audit } = await supabase
         .from('cx_audits')
         .select('id, audit_date, overall_cx_nps, total_signals, benchmark, category_type, status, audit_type')
         .eq('brand_id', brandId)
+        .eq('status', 'published')
         .order('created_at', { ascending: false })
         .limit(1)
         .maybeSingle()
       if (audit) {
         setCxAudit(audit as CxAudit)
-        // Fetch theme scores
         const { data: themes } = await supabase
           .from('cx_theme_scores')
           .select('theme, nps_score, signal_count, dropout_rate, top_concern, sentiment, confidence')
           .eq('audit_id', audit.id)
         if (themes) setCxThemes(themes as CxThemeScore[])
-        // Fetch verdict
         const { data: cv } = await supabase
           .from('cx_verdicts')
           .select('narrative, top_priorities, recommended_actions, mystery_audit_triggered')
@@ -312,7 +311,7 @@ export default function DashboardPage() {
   return (
     <div style={{minHeight:'100vh',background:WHITE,display:'flex'}}>
 
-      {/* SIDEBAR — dark green */}
+      {/* SIDEBAR */}
       <div style={{width:220,flexShrink:0,background:DEEP,borderRight:'1px solid rgba(255,255,255,0.07)',display:'flex',flexDirection:'column',position:'fixed',top:0,left:0,bottom:0,zIndex:50}}>
         <div style={{padding:'18px 16px 14px',borderBottom:'1px solid rgba(255,255,255,0.07)'}}>
           <div style={{display:'flex',alignItems:'center',gap:8}}>
@@ -325,24 +324,16 @@ export default function DashboardPage() {
         </div>
         <div style={{padding:'12px 0',flex:1}}>
           <div style={{fontSize:9,fontWeight:600,color:'rgba(197,194,186,0.4)',padding:'6px 16px 3px',textTransform:'uppercase',letterSpacing:'0.1em'}}>Solomon&apos;s IQ</div>
-          <div
-            onClick={() => setActiveProduct('iq')}
-            style={{display:'flex',alignItems:'center',gap:8,padding:'8px 16px',fontSize:12,color:activeProduct==='iq'?CREAM:CREAM_DIM,textDecoration:'none',borderLeft:activeProduct==='iq'?`2px solid ${GOLD}`:'2px solid transparent',background:activeProduct==='iq'?'rgba(201,168,76,0.08)':'transparent',cursor:'pointer'}}
-          >
+          <div onClick={() => setActiveProduct('iq')} style={{display:'flex',alignItems:'center',gap:8,padding:'8px 16px',fontSize:12,color:activeProduct==='iq'?CREAM:CREAM_DIM,borderLeft:activeProduct==='iq'?`2px solid ${GOLD}`:'2px solid transparent',background:activeProduct==='iq'?'rgba(201,168,76,0.08)':'transparent',cursor:'pointer'}}>
             <span>📊</span> Dashboard
           </div>
           <a href="/campaign-setup" style={{display:'flex',alignItems:'center',gap:8,padding:'8px 16px',fontSize:12,color:CREAM_DIM,textDecoration:'none',borderLeft:'2px solid transparent'}}>
             <span>＋</span> New campaign
           </a>
-
           <div style={{fontSize:9,fontWeight:600,color:'rgba(197,194,186,0.4)',padding:'14px 16px 3px',textTransform:'uppercase',letterSpacing:'0.1em'}}>Solomon&apos;s Eye</div>
-          <div
-            onClick={() => setActiveProduct('eye')}
-            style={{display:'flex',alignItems:'center',gap:8,padding:'8px 16px',fontSize:12,color:activeProduct==='eye'?CREAM:CREAM_DIM,textDecoration:'none',borderLeft:activeProduct==='eye'?`2px solid ${GOLD}`:'2px solid transparent',background:activeProduct==='eye'?'rgba(201,168,76,0.08)':'transparent',cursor:'pointer'}}
-          >
+          <div onClick={() => setActiveProduct('eye')} style={{display:'flex',alignItems:'center',gap:8,padding:'8px 16px',fontSize:12,color:activeProduct==='eye'?CREAM:CREAM_DIM,borderLeft:activeProduct==='eye'?`2px solid ${GOLD}`:'2px solid transparent',background:activeProduct==='eye'?'rgba(201,168,76,0.08)':'transparent',cursor:'pointer'}}>
             <span>👁</span> CX Audit
           </div>
-
           <div style={{fontSize:9,fontWeight:600,color:'rgba(197,194,186,0.4)',padding:'14px 16px 3px',textTransform:'uppercase',letterSpacing:'0.1em'}}>Account</div>
           <a href="/brand-setup" style={{display:'flex',alignItems:'center',gap:8,padding:'8px 16px',fontSize:12,color:CREAM_DIM,textDecoration:'none',borderLeft:'2px solid transparent'}}>
             <span>⚙</span> Brand settings
@@ -357,7 +348,7 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {/* MAIN — white */}
+      {/* MAIN */}
       <div style={{flex:1,marginLeft:220,display:'flex',flexDirection:'column',minHeight:'100vh',background:WHITE}}>
 
         {/* Top nav */}
@@ -382,9 +373,7 @@ export default function DashboardPage() {
             </div>
           )}
           {activeProduct === 'eye' && (
-            <div style={{display:'flex',alignItems:'center',gap:10}}>
-              <a href="/pricing#eye" style={{color:DEEP,fontSize:12,fontWeight:600,textDecoration:'none',padding:'7px 14px',borderRadius:7,background:GOLD}}>+ New Audit</a>
-            </div>
+            <a href="/pricing" style={{color:DEEP,fontSize:12,fontWeight:600,textDecoration:'none',padding:'7px 14px',borderRadius:7,background:GOLD}}>+ New Audit</a>
           )}
         </nav>
 
@@ -394,8 +383,8 @@ export default function DashboardPage() {
             <div style={{marginBottom:'20px'}}>
               <h1 style={{color:DARK,fontFamily:'Georgia,serif',fontSize:'25px',fontWeight:700,marginBottom:4}}>{brand?.brand_name}</h1>
               <p style={{color:BODY_TEXT,fontSize:14,marginBottom:4}}>{brand?.category}</p>
-              {[brand?.competitor_1, brand?.competitor_2, brand?.competitor_3].filter(Boolean).length > 0 && (
-                <p style={{color:'#aaa',fontSize:12}}>vs {[brand?.competitor_1, brand?.competitor_2, brand?.competitor_3].filter(Boolean).join(', ')}</p>
+              {[brand?.competitor_1,brand?.competitor_2,brand?.competitor_3].filter(Boolean).length > 0 && (
+                <p style={{color:'#aaa',fontSize:12}}>vs {[brand?.competitor_1,brand?.competitor_2,brand?.competitor_3].filter(Boolean).join(', ')}</p>
               )}
             </div>
 
@@ -403,7 +392,7 @@ export default function DashboardPage() {
             <div style={{display:'flex',alignItems:'center',gap:8,padding:'8px 14px',background:'#f9f9f9',border:`1px solid ${BORDER}`,borderRadius:8,marginBottom:16,fontSize:12,color:BODY_TEXT}}>
               <div style={{width:7,height:7,borderRadius:'50%',background:GREEN,flexShrink:0}}/>
               <span>
-                {totalSources > 0 ? `Signals from ${totalSources} sources` : 'Signals being collected'}
+                {totalSources > 0 ? `Signals from ${totalSources} sources` : 'Signals being collected — check back soon'}
                 {lastUpdated ? ` · Last updated ${new Date(lastUpdated).toLocaleString('en-IN',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'})}` : ''}
                 {refreshing && <span style={{color:GOLD,marginLeft:8}}>Updating...</span>}
               </span>
@@ -434,58 +423,66 @@ export default function DashboardPage() {
             </p>
 
             {/* KPI Cards */}
-            <div style={{display:'grid',gridTemplateColumns:'repeat(5,1fr)',gap:12,marginBottom:24}}>
-              {KPI_NAMES.map(kpiName => {
-                const kpi = getBrandKpi(kpiName)
-                const mv = movementLabel(kpi?.movement ?? null)
-                const zoneColor = kpi ? ZONE_COLOR[kpi.zone] : BORDER
-                const subBuckets = KPI_SUB_BUCKETS[kpiName]
-                return (
-                  <div key={kpiName} style={{padding:'18px 14px',borderRadius:12,background:WHITE,border:`1px solid ${BORDER}`,borderTop:`3px solid ${zoneColor}`,boxShadow:'0 1px 4px rgba(0,0,0,0.04)'}}>
-                    <div style={{color:GOLD,fontSize:10,fontWeight:600,letterSpacing:'0.12em',textTransform:'uppercase',marginBottom:8}}>{kpiName}</div>
-                    <div style={{color:DARK,fontFamily:'Georgia,serif',fontSize:30,fontWeight:700,lineHeight:1,marginBottom:4}}>
-                      {kpi ? scoreDisplay(kpiName, kpi.score) : '--'}
+            {brandKpis.length === 0 ? (
+              <div style={{background:'#f9f9f9',border:`1px solid ${BORDER}`,borderRadius:12,padding:'32px',textAlign:'center',marginBottom:24}}>
+                <div style={{fontSize:24,marginBottom:12}}>📊</div>
+                <p style={{fontSize:15,fontWeight:600,color:DARK,marginBottom:8}}>Your data is being prepared</p>
+                <p style={{fontSize:14,color:BODY_TEXT,lineHeight:1.75}}>We are collecting and verifying your brand signals. Your dashboard will populate once your first report is ready.</p>
+              </div>
+            ) : (
+              <div style={{display:'grid',gridTemplateColumns:'repeat(5,1fr)',gap:12,marginBottom:24}}>
+                {KPI_NAMES.map(kpiName => {
+                  const kpi = getBrandKpi(kpiName)
+                  const mv = movementLabel(kpi?.movement ?? null)
+                  const zoneColor = kpi ? ZONE_COLOR[kpi.zone] : BORDER
+                  const subBuckets = KPI_SUB_BUCKETS[kpiName]
+                  return (
+                    <div key={kpiName} style={{padding:'18px 14px',borderRadius:12,background:WHITE,border:`1px solid ${BORDER}`,borderTop:`3px solid ${zoneColor}`,boxShadow:'0 1px 4px rgba(0,0,0,0.04)'}}>
+                      <div style={{color:GOLD,fontSize:10,fontWeight:600,letterSpacing:'0.12em',textTransform:'uppercase',marginBottom:8}}>{kpiName}</div>
+                      <div style={{color:DARK,fontFamily:'Georgia,serif',fontSize:30,fontWeight:700,lineHeight:1,marginBottom:4}}>
+                        {kpi ? scoreDisplay(kpiName, kpi.score) : '--'}
+                      </div>
+                      {kpi ? (
+                        <>
+                          <div style={{fontSize:11,color:zoneColor,marginBottom:3,fontWeight:600}}>{ZONE_LABEL[kpi.zone]}</div>
+                          {mv && <div style={{fontSize:11,color:mv.color,fontWeight:500,marginBottom:8}}>{mv.text}</div>}
+                        </>
+                      ) : (
+                        <div style={{color:'#bbb',fontSize:11,marginBottom:8}}>No data yet</div>
+                      )}
+                      {subBuckets.length > 0 && (
+                        <div style={{display:'flex',flexDirection:'column',gap:3,borderTop:`1px solid ${BORDER}`,paddingTop:8}}>
+                          {subBuckets.map(sb => {
+                            const val = kpi ? (kpi as any)[sb.key] : null
+                            return (
+                              <div key={sb.key} style={{display:'flex',alignItems:'center',gap:5,fontSize:10,color:BODY_TEXT}}>
+                                <div style={{width:6,height:6,borderRadius:'50%',background:subBucketColor(val),flexShrink:0}}/>
+                                <span>{sb.label}</span>
+                              </div>
+                            )
+                          })}
+                        </div>
+                      )}
+                      {kpiName === 'imagery' && kpi && (
+                        <div style={{borderTop:`1px solid ${BORDER}`,paddingTop:8,fontSize:10,color:BODY_TEXT}}>
+                          <div style={{display:'flex',alignItems:'center',gap:5,marginBottom:3}}>
+                            <div style={{width:6,height:6,borderRadius:'50%',background:GREEN,flexShrink:0}}/>
+                            <span>Echoing</span>
+                          </div>
+                          <div style={{display:'flex',alignItems:'center',gap:5}}>
+                            <div style={{width:6,height:6,borderRadius:'50%',background:AMBER,flexShrink:0}}/>
+                            <span>Drifting</span>
+                          </div>
+                        </div>
+                      )}
                     </div>
-                    {kpi ? (
-                      <>
-                        <div style={{fontSize:11,color:zoneColor,marginBottom:3,fontWeight:600}}>{ZONE_LABEL[kpi.zone]}</div>
-                        {mv && <div style={{fontSize:11,color:mv.color,fontWeight:500,marginBottom:8}}>{mv.text}</div>}
-                      </>
-                    ) : (
-                      <div style={{color:'#bbb',fontSize:11,marginBottom:8}}>No data yet</div>
-                    )}
-                    {subBuckets.length > 0 && (
-                      <div style={{display:'flex',flexDirection:'column',gap:3,borderTop:`1px solid ${BORDER}`,paddingTop:8}}>
-                        {subBuckets.map(sb => {
-                          const val = kpi ? (kpi as any)[sb.key] : null
-                          return (
-                            <div key={sb.key} style={{display:'flex',alignItems:'center',gap:5,fontSize:10,color:BODY_TEXT}}>
-                              <div style={{width:6,height:6,borderRadius:'50%',background:subBucketColor(val),flexShrink:0}}/>
-                              <span>{sb.label}</span>
-                            </div>
-                          )
-                        })}
-                      </div>
-                    )}
-                    {kpiName === 'imagery' && kpi && (
-                      <div style={{borderTop:`1px solid ${BORDER}`,paddingTop:8,fontSize:10,color:BODY_TEXT}}>
-                        <div style={{display:'flex',alignItems:'center',gap:5,marginBottom:3}}>
-                          <div style={{width:6,height:6,borderRadius:'50%',background:GREEN,flexShrink:0}}/>
-                          <span>Echoing</span>
-                        </div>
-                        <div style={{display:'flex',alignItems:'center',gap:5}}>
-                          <div style={{width:6,height:6,borderRadius:'50%',background:AMBER,flexShrink:0}}/>
-                          <span>Drifting</span>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                )
-              })}
-            </div>
+                  )
+                })}
+              </div>
+            )}
 
             {/* Competitor table */}
-            {competitors.length > 0 && (
+            {competitors.length > 0 && brandKpis.length > 0 && (
               <div style={{background:WHITE,border:`1px solid ${BORDER}`,borderRadius:12,overflow:'hidden',marginBottom:24,boxShadow:'0 1px 4px rgba(0,0,0,0.04)'}}>
                 <div style={{padding:'12px 24px',borderBottom:`1px solid ${BORDER}`,display:'flex',alignItems:'center',justifyContent:'space-between'}}>
                   <span style={{fontSize:11,fontWeight:600,color:BODY_TEXT,textTransform:'uppercase',letterSpacing:'0.1em'}}>Competitor comparison</span>
@@ -618,13 +615,12 @@ export default function DashboardPage() {
         {activeProduct === 'eye' && (
           <div style={{maxWidth:'1100px',margin:'0 auto',padding:'32px',width:'100%'}}>
 
-            {/* NOT PAID — upsell state */}
             {!eyePaid && (
               <div style={{textAlign:'center',padding:'80px 24px'}}>
                 <div style={{fontSize:36,marginBottom:16}}>👁</div>
                 <h2 style={{fontFamily:'Georgia,serif',fontSize:25,fontWeight:700,color:DARK,marginBottom:12}}>Solomon&apos;s Eye</h2>
-                <p style={{fontSize:15,color:BODY_TEXT,maxWidth:440,margin:'0 auto 12px',lineHeight:1.75}}>CX audit not active on your account. Purchase Solomon&apos;s Eye to see your full customer experience audit — by theme, by sub-touchpoint, with drop-off rates and Solomon&apos;s Eye Verdict.</p>
-                <div style={{display:'grid',gridTemplateColumns:'repeat(5,1fr)',gap:10,maxWidth:700,margin:'28px auto',opacity:0.3,filter:'blur(2px)',pointerEvents:'none'}}>
+                <p style={{fontSize:15,color:BODY_TEXT,maxWidth:440,margin:'0 auto 28px',lineHeight:1.75}}>CX audit not active on your account. Purchase Solomon&apos;s Eye to see your full customer experience audit — by theme, by sub-touchpoint, with drop-off rates and Solomon&apos;s Eye Verdict.</p>
+                <div style={{display:'grid',gridTemplateColumns:'repeat(5,1fr)',gap:10,maxWidth:700,margin:'0 auto 28px',opacity:0.3,filter:'blur(2px)',pointerEvents:'none'}}>
                   {CX_THEMES.map(theme => (
                     <div key={theme} style={{background:WHITE,border:`1px solid ${BORDER}`,borderRadius:10,padding:'16px 12px',textAlign:'center'}}>
                       <div style={{fontSize:10,fontWeight:600,color:GOLD,textTransform:'uppercase',letterSpacing:'0.1em',marginBottom:8}}>{theme}</div>
@@ -637,17 +633,15 @@ export default function DashboardPage() {
               </div>
             )}
 
-            {/* PAID — no audit yet */}
             {eyePaid && !cxAudit && (
               <div style={{textAlign:'center',padding:'80px 24px'}}>
                 <div style={{fontSize:36,marginBottom:16}}>👁</div>
                 <h2 style={{fontFamily:'Georgia,serif',fontSize:25,fontWeight:700,color:DARK,marginBottom:12}}>Your CX audit is being prepared</h2>
-                <p style={{fontSize:15,color:BODY_TEXT,maxWidth:440,margin:'0 auto 24px',lineHeight:1.75}}>Your Solomon&apos;s Eye audit is underway. You will receive an email once your results are ready — typically within 5 to 7 business days.</p>
+                <p style={{fontSize:15,color:BODY_TEXT,maxWidth:440,margin:'0 auto 24px',lineHeight:1.75}}>We are collecting and verifying your customer experience signals. Your dashboard will populate once your first audit is ready.</p>
                 <a href="/connect" style={{display:'inline-block',background:GOLD,color:DEEP,fontSize:14,fontWeight:600,padding:'12px 28px',borderRadius:8,textDecoration:'none'}}>Questions? Connect with us</a>
               </div>
             )}
 
-            {/* PAID — audit data available */}
             {eyePaid && cxAudit && (
               <>
                 <div style={{marginBottom:20}}>
@@ -658,7 +652,6 @@ export default function DashboardPage() {
                   </p>
                 </div>
 
-                {/* Overall CX NPS */}
                 <div style={{background:WHITE,border:`1px solid ${BORDER}`,borderRadius:12,padding:'20px 24px',marginBottom:20,boxShadow:'0 1px 4px rgba(0,0,0,0.04)',display:'flex',alignItems:'center',gap:32}}>
                   <div>
                     <div style={{fontSize:11,fontWeight:600,color:GOLD,textTransform:'uppercase',letterSpacing:'0.1em',marginBottom:6}}>Overall CX NPS</div>
@@ -678,7 +671,6 @@ export default function DashboardPage() {
                   </div>
                 </div>
 
-                {/* 5 Theme cards */}
                 <p style={{fontSize:11,fontWeight:600,color:BODY_TEXT,textTransform:'uppercase',letterSpacing:'0.12em',marginBottom:12}}>CX by theme</p>
                 <div style={{display:'grid',gridTemplateColumns:'repeat(5,1fr)',gap:12,marginBottom:24}}>
                   {CX_THEMES.map(theme => {
@@ -698,14 +690,10 @@ export default function DashboardPage() {
                               <span style={{fontSize:10,color:BODY_TEXT,textTransform:'capitalize'}}>{t.sentiment}</span>
                             </div>
                             {t.dropout_rate !== null && (
-                              <div style={{fontSize:10,color:t.dropout_rate > 20 ? RED : BODY_TEXT}}>
-                                {t.dropout_rate}% drop-off
-                              </div>
+                              <div style={{fontSize:10,color:t.dropout_rate > 20 ? RED : BODY_TEXT}}>{t.dropout_rate}% drop-off</div>
                             )}
                             {t.top_concern && (
-                              <div style={{fontSize:10,color:'#aaa',marginTop:4,lineHeight:1.4,borderTop:`1px solid ${BORDER}`,paddingTop:6}}>
-                                {t.top_concern}
-                              </div>
+                              <div style={{fontSize:10,color:'#aaa',marginTop:4,lineHeight:1.4,borderTop:`1px solid ${BORDER}`,paddingTop:6}}>{t.top_concern}</div>
                             )}
                           </>
                         )}
@@ -715,7 +703,6 @@ export default function DashboardPage() {
                   })}
                 </div>
 
-                {/* Solomon's Eye Verdict */}
                 {cxVerdict ? (
                   <div style={{background:WHITE,border:`1px solid ${BORDER}`,borderRadius:12,padding:'28px 32px',boxShadow:'0 1px 4px rgba(0,0,0,0.04)'}}>
                     <div style={{display:'inline-flex',alignItems:'center',gap:8,background:'rgba(201,168,76,0.1)',border:'1px solid rgba(201,168,76,0.25)',borderRadius:20,padding:'4px 14px',marginBottom:16}}>
@@ -726,7 +713,7 @@ export default function DashboardPage() {
                     )}
                     {cxVerdict.mystery_audit_triggered && (
                       <div style={{background:'rgba(201,168,76,0.08)',border:'1px solid rgba(201,168,76,0.3)',borderRadius:8,padding:'12px 16px',marginBottom:16,fontSize:13,color:'#7a5c00'}}>
-                        ⚠ Mystery audit recommended — one or more themes have insufficient signal volume for reliable NPS. <a href="/pricing" style={{color:GOLD,fontWeight:500}}>Add mystery audit →</a>
+                        ⚠ Mystery audit recommended — one or more themes have insufficient signal volume. <a href="/pricing" style={{color:GOLD,fontWeight:500}}>Add mystery audit →</a>
                       </div>
                     )}
                   </div>
