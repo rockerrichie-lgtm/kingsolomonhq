@@ -36,12 +36,8 @@ export default function AdminPage() {
   const [loading, setLoading] = useState(false)
   const [msg, setMsg] = useState('')
   const [scraperInstructions, setScraperInstructions] = useState<Record<string, string>>({})
-
-  // IQ decisions
   const [kpiDecisions, setKpiDecisions] = useState<Record<string, Decision>>({})
   const [kpiInstructions, setKpiInstructions] = useState<Record<string, string>>({})
-
-  // Eye decisions — per theme score row
   const [themeDecisions, setThemeDecisions] = useState<Record<string, Decision>>({})
   const [themeInstructions, setThemeInstructions] = useState<Record<string, string>>({})
 
@@ -75,7 +71,6 @@ export default function AdminPage() {
     const data = await res.json()
     const audits = Array.isArray(data) ? data : []
     setPendingAudits(audits)
-    // Fetch theme scores for each audit
     for (const audit of audits) {
       const tRes = await fetch(`${SUPABASE_URL}/rest/v1/cx_theme_scores?audit_id=eq.${audit.id}&select=*`, { headers })
       const tData = await tRes.json()
@@ -110,16 +105,14 @@ export default function AdminPage() {
     fetchOrders()
   }
 
-  // Group pending KPIs by brand+checkpoint+date
   const groupedKpis = pendingKpis.reduce((acc: any, kpi: any) => {
-    const key = `${kpi.brand_id}__${kpi.checkpoint}__${kpi.created_at?.slice(0, 10)}`
+    const key = `${kpi.brand_id}__${kpi.checkpoint}`
     if (!acc[key]) acc[key] = { brand_id: kpi.brand_id, checkpoint: kpi.checkpoint, date: kpi.created_at, kpis: [] }
     acc[key].kpis.push(kpi)
     return acc
   }, {})
   const brandGroups = Object.values(groupedKpis) as any[]
 
-  // Submit IQ decisions
   const submitBrandDecisions = async (group: any) => {
     setLoading(true)
     setMsg('')
@@ -161,22 +154,21 @@ export default function AdminPage() {
     } else {
       setMsg(`✅ ${approvedCount} approved, ${rejectedCount} flagged for re-scrape.`)
     }
+    setKpiDecisions({})
+    setKpiInstructions({})
     fetchPendingKpis()
     setLoading(false)
   }
 
-  // Submit Eye decisions — per theme
   const submitAuditDecisions = async (audit: any) => {
     setLoading(true)
     setMsg('')
     const themes = auditThemes[audit.id] || []
     let approvedCount = 0
     let rejectedCount = 0
-
     for (const theme of themes) {
       const decision = themeDecisions[theme.id]
       if (decision === 'approve') {
-        // Mark theme as approved — we use confidence field as a proxy
         await fetch(`${SUPABASE_URL}/rest/v1/cx_theme_scores?id=eq.${theme.id}`, {
           method: 'PATCH',
           headers: { ...headers, 'Prefer': 'return=minimal' },
@@ -192,8 +184,6 @@ export default function AdminPage() {
         rejectedCount++
       }
     }
-
-    // If all themes approved — publish the audit and unlock report
     if (rejectedCount === 0 && approvedCount > 0) {
       await fetch(`${SUPABASE_URL}/rest/v1/cx_audits?id=eq.${audit.id}`, {
         method: 'PATCH',
@@ -207,8 +197,10 @@ export default function AdminPage() {
       })
       setMsg('✅ All themes approved. Eye dashboard and report unlocked for client.')
     } else {
-      setMsg(`✅ ${approvedCount} themes approved, ${rejectedCount} flagged for re-scrape. Client sees data being prepared.`)
+      setMsg(`✅ ${approvedCount} themes approved, ${rejectedCount} flagged for re-scrape.`)
     }
+    setThemeDecisions({})
+    setThemeInstructions({})
     fetchPendingAudits()
     setLoading(false)
   }
@@ -220,14 +212,12 @@ export default function AdminPage() {
         <div style={{fontSize:32,color:GOLD,marginBottom:12}}>♛</div>
         <div style={{fontFamily:'Georgia,serif',fontSize:18,fontWeight:700,color:CREAM,marginBottom:4}}>Admin Panel</div>
         <div style={{fontSize:12,color:CREAM_DIM,marginBottom:24}}>King Solomon — internal only</div>
-        <input
-          type="password" placeholder="Admin password" value={password}
+        <input type="password" placeholder="Admin password" value={password}
           onChange={e => setPassword(e.target.value)}
           onKeyDown={e => { if (e.key === 'Enter') { if (password === ADMIN_PASSWORD) { setAuthed(true) } else { setMsg('Wrong password') } } }}
           style={{width:'100%',padding:'10px 14px',borderRadius:8,border:'1px solid rgba(255,255,255,0.1)',background:'rgba(255,255,255,0.06)',color:CREAM,fontSize:14,marginBottom:12,fontFamily:'Inter,sans-serif'}}
         />
-        <button
-          onClick={() => { if (password === ADMIN_PASSWORD) { setAuthed(true) } else { setMsg('Wrong password') } }}
+        <button onClick={() => { if (password === ADMIN_PASSWORD) { setAuthed(true) } else { setMsg('Wrong password') } }}
           style={{width:'100%',padding:'10px',background:GOLD,color:DEEP,border:'none',borderRadius:8,fontSize:14,fontWeight:600,cursor:'pointer',fontFamily:'Inter,sans-serif'}}
         >Enter</button>
         {msg && <div style={{marginTop:12,fontSize:12,color:RED}}>{msg}</div>}
@@ -239,23 +229,14 @@ export default function AdminPage() {
     <div style={{minHeight:'100vh',background:'#f9f9f9',display:'flex'}}>
       <style>{`*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}body{font-family:'Inter',sans-serif}`}</style>
 
-      {/* SIDEBAR */}
       <div style={{width:220,background:DEEP,display:'flex',flexDirection:'column',position:'fixed',top:0,left:0,bottom:0,zIndex:50}}>
         <div style={{padding:'20px 16px',borderBottom:'1px solid rgba(255,255,255,0.07)'}}>
           <div style={{fontSize:10,color:GOLD,fontWeight:600,letterSpacing:'0.1em',textTransform:'uppercase'}}>King Solomon</div>
           <div style={{fontSize:12,color:CREAM_DIM,marginTop:2}}>Admin panel</div>
         </div>
-        {([
-          ['payments','💳 Payments'],
-          ['clients','🏢 Clients'],
-          ['approval','✅ Data approval'],
-          ['scraper','🔍 Scraper'],
-        ] as const).map(([key, label]) => (
-          <div
-            key={key}
-            onClick={() => { setSection(key); setSelectedClient(null); setMsg('') }}
-            style={{padding:'10px 16px',fontSize:13,color:section===key?CREAM:CREAM_DIM,borderLeft:section===key?`2px solid ${GOLD}`:'2px solid transparent',background:section===key?'rgba(201,168,76,0.08)':'transparent',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'space-between'}}
-          >
+        {([['payments','💳 Payments'],['clients','🏢 Clients'],['approval','✅ Data approval'],['scraper','🔍 Scraper']] as const).map(([key, label]) => (
+          <div key={key} onClick={() => { setSection(key); setSelectedClient(null); setMsg('') }}
+            style={{padding:'10px 16px',fontSize:13,color:section===key?CREAM:CREAM_DIM,borderLeft:section===key?`2px solid ${GOLD}`:'2px solid transparent',background:section===key?'rgba(201,168,76,0.08)':'transparent',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'space-between'}}>
             <span>{label}</span>
             {key === 'approval' && (brandGroups.length + pendingAudits.length) > 0 && (
               <span style={{background:RED,color:WHITE,fontSize:10,fontWeight:700,padding:'1px 6px',borderRadius:20}}>{brandGroups.length + pendingAudits.length}</span>
@@ -267,9 +248,7 @@ export default function AdminPage() {
         </div>
       </div>
 
-      {/* MAIN */}
       <div style={{flex:1,marginLeft:220,padding:32}}>
-
         {msg && (
           <div style={{padding:'10px 16px',borderRadius:8,background:msg.startsWith('✅')?'rgba(95,198,138,0.1)':'rgba(232,120,120,0.1)',border:`1px solid ${msg.startsWith('✅')?'rgba(95,198,138,0.3)':'rgba(232,120,120,0.3)'}`,fontSize:13,color:msg.startsWith('✅')?'#1a6b1a':'#7a1a1a',marginBottom:20}}>
             {msg} <span onClick={() => setMsg('')} style={{cursor:'pointer',marginLeft:12,opacity:0.5}}>✕</span>
@@ -283,29 +262,21 @@ export default function AdminPage() {
             <p style={{fontSize:14,color:BODY_TEXT,marginBottom:20}}>All orders.</p>
             <div style={{background:WHITE,border:`1px solid ${BORDER}`,borderRadius:12,overflow:'hidden'}}>
               <table style={{width:'100%',borderCollapse:'collapse',fontSize:13}}>
-                <thead>
-                  <tr style={{background:'#fafafa'}}>
-                    {['Email','Plan','Product','Status','Amount','Date','Action'].map(h => (
-                      <th key={h} style={{textAlign:'left',padding:'10px 16px',fontWeight:600,color:'#aaa',fontSize:11,textTransform:'uppercase',letterSpacing:'0.08em',borderBottom:`1px solid ${BORDER}`}}>{h}</th>
-                    ))}
-                  </tr>
-                </thead>
+                <thead><tr style={{background:'#fafafa'}}>
+                  {['Email','Plan','Product','Status','Amount','Date','Action'].map(h => (
+                    <th key={h} style={{textAlign:'left',padding:'10px 16px',fontWeight:600,color:'#aaa',fontSize:11,textTransform:'uppercase',letterSpacing:'0.08em',borderBottom:`1px solid ${BORDER}`}}>{h}</th>
+                  ))}
+                </tr></thead>
                 <tbody>
                   {orders.map(o => (
                     <tr key={o.id} style={{borderBottom:`1px solid ${BORDER}`}}>
                       <td style={{padding:'10px 16px',color:DARK}}>{o.email}</td>
                       <td style={{padding:'10px 16px',color:BODY_TEXT}}>{o.plan_name}</td>
                       <td style={{padding:'10px 16px',fontSize:11,fontWeight:600,color:o.product==='eye'?MID_GREEN:GOLD,textTransform:'uppercase'}}>{o.product}</td>
-                      <td style={{padding:'10px 16px'}}>
-                        <span style={{fontSize:11,fontWeight:600,padding:'2px 8px',borderRadius:20,background:o.status==='paid'?'rgba(95,198,138,0.1)':'rgba(232,120,120,0.1)',color:o.status==='paid'?'#1a6b1a':'#7a1a1a'}}>{o.status}</span>
-                      </td>
+                      <td style={{padding:'10px 16px'}}><span style={{fontSize:11,fontWeight:600,padding:'2px 8px',borderRadius:20,background:o.status==='paid'?'rgba(95,198,138,0.1)':'rgba(232,120,120,0.1)',color:o.status==='paid'?'#1a6b1a':'#7a1a1a'}}>{o.status}</span></td>
                       <td style={{padding:'10px 16px',color:BODY_TEXT}}>{o.currency==='INR'?`Rs ${o.amount_inr?.toLocaleString('en-IN')}`:`$${o.amount_usd}`}</td>
                       <td style={{padding:'10px 16px',color:'#aaa',fontSize:12}}>{new Date(o.created_at).toLocaleDateString('en-IN',{day:'numeric',month:'short',year:'numeric'})}</td>
-                      <td style={{padding:'10px 16px'}}>
-                        {o.status !== 'paid' && (
-                          <button onClick={() => markPaid(o.id)} style={{fontSize:11,padding:'4px 10px',borderRadius:6,background:GOLD,color:DEEP,border:'none',cursor:'pointer',fontFamily:'Inter,sans-serif',fontWeight:600}}>Mark paid</button>
-                        )}
-                      </td>
+                      <td style={{padding:'10px 16px'}}>{o.status !== 'paid' && <button onClick={() => markPaid(o.id)} style={{fontSize:11,padding:'4px 10px',borderRadius:6,background:GOLD,color:DEEP,border:'none',cursor:'pointer',fontFamily:'Inter,sans-serif',fontWeight:600}}>Mark paid</button>}</td>
                     </tr>
                   ))}
                   {orders.length === 0 && <tr><td colSpan={7} style={{padding:'24px',textAlign:'center',color:'#aaa',fontSize:13}}>No orders yet.</td></tr>}
@@ -352,21 +323,17 @@ export default function AdminPage() {
             <div style={{fontSize:11,fontWeight:600,color:GOLD,textTransform:'uppercase',letterSpacing:'0.1em',marginBottom:12}}>Purchase history</div>
             <div style={{background:WHITE,border:`1px solid ${BORDER}`,borderRadius:12,overflow:'hidden',marginBottom:24}}>
               <table style={{width:'100%',borderCollapse:'collapse',fontSize:13}}>
-                <thead>
-                  <tr style={{background:'#fafafa'}}>
-                    {['Plan','Product','Status','Amount','Date'].map(h => (
-                      <th key={h} style={{textAlign:'left',padding:'10px 16px',fontWeight:600,color:'#aaa',fontSize:11,textTransform:'uppercase',letterSpacing:'0.08em',borderBottom:`1px solid ${BORDER}`}}>{h}</th>
-                    ))}
-                  </tr>
-                </thead>
+                <thead><tr style={{background:'#fafafa'}}>
+                  {['Plan','Product','Status','Amount','Date'].map(h => (
+                    <th key={h} style={{textAlign:'left',padding:'10px 16px',fontWeight:600,color:'#aaa',fontSize:11,textTransform:'uppercase',letterSpacing:'0.08em',borderBottom:`1px solid ${BORDER}`}}>{h}</th>
+                  ))}
+                </tr></thead>
                 <tbody>
                   {clientOrders.map(o => (
                     <tr key={o.id} style={{borderBottom:`1px solid ${BORDER}`}}>
                       <td style={{padding:'10px 16px',color:DARK}}>{o.plan_name}</td>
                       <td style={{padding:'10px 16px',fontSize:11,fontWeight:600,color:o.product==='eye'?MID_GREEN:GOLD,textTransform:'uppercase'}}>{o.product}</td>
-                      <td style={{padding:'10px 16px'}}>
-                        <span style={{fontSize:11,fontWeight:600,padding:'2px 8px',borderRadius:20,background:o.status==='paid'?'rgba(95,198,138,0.1)':'rgba(232,120,120,0.1)',color:o.status==='paid'?'#1a6b1a':'#7a1a1a'}}>{o.status}</span>
-                      </td>
+                      <td style={{padding:'10px 16px'}}><span style={{fontSize:11,fontWeight:600,padding:'2px 8px',borderRadius:20,background:o.status==='paid'?'rgba(95,198,138,0.1)':'rgba(232,120,120,0.1)',color:o.status==='paid'?'#1a6b1a':'#7a1a1a'}}>{o.status}</span></td>
                       <td style={{padding:'10px 16px',color:BODY_TEXT}}>{o.currency==='INR'?`Rs ${o.amount_inr?.toLocaleString('en-IN')}`:`$${o.amount_usd}`}</td>
                       <td style={{padding:'10px 16px',color:'#aaa',fontSize:12}}>{new Date(o.created_at).toLocaleDateString('en-IN',{day:'numeric',month:'short',year:'numeric'})}</td>
                     </tr>
@@ -377,12 +344,7 @@ export default function AdminPage() {
             </div>
             <div style={{fontSize:11,fontWeight:600,color:GOLD,textTransform:'uppercase',letterSpacing:'0.1em',marginBottom:12}}>Brand details</div>
             <div style={{background:WHITE,border:`1px solid ${BORDER}`,borderRadius:12,padding:'16px 20px',display:'grid',gridTemplateColumns:'1fr 1fr',gap:12}}>
-              {[
-                {label:'Brand ID',val:selectedClient.id},
-                {label:'User ID',val:selectedClient.user_id},
-                {label:'IQ report ready',val:selectedClient.iq_report_ready ? '✅ Yes' : '⬜ No'},
-                {label:'Eye report ready',val:selectedClient.eye_report_ready ? '✅ Yes' : '⬜ No'},
-              ].map(f => (
+              {[{label:'Brand ID',val:selectedClient.id},{label:'User ID',val:selectedClient.user_id},{label:'IQ report ready',val:selectedClient.iq_report_ready?'✅ Yes':'⬜ No'},{label:'Eye report ready',val:selectedClient.eye_report_ready?'✅ Yes':'⬜ No'}].map(f => (
                 <div key={f.label}>
                   <div style={{fontSize:10,color:'#aaa',marginBottom:3,textTransform:'uppercase',letterSpacing:'0.06em'}}>{f.label}</div>
                   <div style={{fontSize:13,color:DARK,fontFamily:f.label.includes('ID')?'monospace':'Inter,sans-serif'}}>{f.val}</div>
@@ -398,18 +360,16 @@ export default function AdminPage() {
             <h1 style={{fontFamily:'Georgia,serif',fontSize:25,fontWeight:700,color:DARK,marginBottom:6}}>Data approval</h1>
             <p style={{fontSize:14,color:BODY_TEXT,marginBottom:20}}>Tick or reject each KPI and CX theme. Rejected items require a re-scrape instruction. Hit Submit to process all decisions at once.</p>
 
-            {/* IQ PENDING */}
+            {/* IQ */}
             <div style={{marginBottom:32}}>
-              <div style={{fontSize:11,fontWeight:600,color:GOLD,textTransform:'uppercase',letterSpacing:'0.1em',marginBottom:12}}>
-                Solomon&apos;s IQ — Pending review ({brandGroups.length})
-              </div>
+              <div style={{fontSize:11,fontWeight:600,color:GOLD,textTransform:'uppercase',letterSpacing:'0.1em',marginBottom:12}}>Solomon&apos;s IQ — Pending review ({brandGroups.length})</div>
               {brandGroups.length === 0 ? (
                 <div style={{background:WHITE,border:`1px solid ${BORDER}`,borderRadius:12,padding:'24px',textAlign:'center',color:'#aaa',fontSize:13}}>No pending IQ scores. All clear.</div>
               ) : (
                 <div style={{display:'flex',flexDirection:'column',gap:16}}>
                   {brandGroups.map((group: any) => {
-                    const groupKey = `${group.brand_id}__${group.checkpoint}__${group.date?.slice(0,10)}`
-                    const allDecided = group.kpis.every((k: any) => kpiDecisions[k.id] !== null && kpiDecisions[k.id] !== undefined)
+                    const groupKey = `${group.brand_id}__${group.checkpoint}`
+                    const allDecided = group.kpis.every((k: any) => !!kpiDecisions[k.id])
                     const rejectedKpis = group.kpis.filter((k: any) => kpiDecisions[k.id] === 'reject')
                     const missingInstructions = rejectedKpis.some((k: any) => !kpiInstructions[k.id])
                     return (
@@ -426,18 +386,17 @@ export default function AdminPage() {
                             const kpi = group.kpis.find((k: any) => k.kpi_name === kpiName)
                             const decision = kpi ? kpiDecisions[kpi.id] : null
                             return (
-                              <div key={kpiName} style={{background:'#f9f9f9',borderRadius:10,padding:'12px 10px',textAlign:'center',border:`2px solid ${decision === 'approve' ? GREEN : decision === 'reject' ? RED : BORDER}`}}>
+                              <div key={kpiName} style={{background:'#f9f9f9',borderRadius:10,padding:'12px 10px',textAlign:'center',border:`2px solid ${decision==='approve'?GREEN:decision==='reject'?RED:BORDER}`}}>
                                 <div style={{fontSize:9,fontWeight:600,color:GOLD,textTransform:'uppercase',letterSpacing:'0.1em',marginBottom:6}}>{kpiName}</div>
                                 <div style={{fontFamily:'Georgia,serif',fontSize:22,fontWeight:700,color:DARK,marginBottom:8}}>
-                                  {kpi ? (kpiName === 'buzz' && kpi.score > 0 ? `+${kpi.score}` : kpi.score) : '--'}
+                                  {kpi ? (kpiName==='buzz'&&kpi.score>0?`+${kpi.score}`:kpi.score) : '--'}
                                 </div>
-                                {kpi && (
+                                {kpi ? (
                                   <div style={{display:'flex',gap:4,justifyContent:'center'}}>
-                                    <button onClick={() => setKpiDecisions(prev => ({...prev, [kpi.id]: 'approve'}))} style={{width:28,height:28,borderRadius:6,border:`1px solid ${decision==='approve'?GREEN:BORDER}`,background:decision==='approve'?GREEN:WHITE,color:decision==='approve'?WHITE:'#aaa',fontSize:13,cursor:'pointer',fontWeight:700}}>✓</button>
-                                    <button onClick={() => setKpiDecisions(prev => ({...prev, [kpi.id]: 'reject'}))} style={{width:28,height:28,borderRadius:6,border:`1px solid ${decision==='reject'?RED:BORDER}`,background:decision==='reject'?RED:WHITE,color:decision==='reject'?WHITE:'#aaa',fontSize:13,cursor:'pointer',fontWeight:700}}>✗</button>
+                                    <button onClick={() => setKpiDecisions(prev => ({...prev,[kpi.id]:'approve'}))} style={{width:28,height:28,borderRadius:6,border:`1px solid ${decision==='approve'?GREEN:BORDER}`,background:decision==='approve'?GREEN:WHITE,color:decision==='approve'?WHITE:'#aaa',fontSize:13,cursor:'pointer',fontWeight:700}}>✓</button>
+                                    <button onClick={() => setKpiDecisions(prev => ({...prev,[kpi.id]:'reject'}))} style={{width:28,height:28,borderRadius:6,border:`1px solid ${decision==='reject'?RED:BORDER}`,background:decision==='reject'?RED:WHITE,color:decision==='reject'?WHITE:'#aaa',fontSize:13,cursor:'pointer',fontWeight:700}}>✗</button>
                                   </div>
-                                )}
-                                {!kpi && <div style={{fontSize:10,color:'#ccc'}}>No data</div>}
+                                ) : <div style={{fontSize:10,color:'#ccc'}}>No data</div>}
                               </div>
                             )
                           })}
@@ -447,29 +406,17 @@ export default function AdminPage() {
                             {rejectedKpis.map((kpi: any) => (
                               <div key={kpi.id} style={{display:'flex',alignItems:'center',gap:8}}>
                                 <span style={{fontSize:11,fontWeight:600,color:RED,textTransform:'uppercase',minWidth:90}}>{kpi.kpi_name}</span>
-                                <input
-                                  placeholder={`Re-scrape instruction for ${kpi.kpi_name}...`}
-                                  value={kpiInstructions[kpi.id] || ''}
-                                  onChange={e => setKpiInstructions(prev => ({...prev, [kpi.id]: e.target.value}))}
-                                  style={{flex:1,padding:'7px 12px',border:`1px solid ${RED}`,borderRadius:7,fontSize:13,color:DARK,fontFamily:'Inter,sans-serif'}}
-                                />
+                                <input placeholder={`Re-scrape instruction for ${kpi.kpi_name}...`} value={kpiInstructions[kpi.id]||''} onChange={e => setKpiInstructions(prev => ({...prev,[kpi.id]:e.target.value}))} style={{flex:1,padding:'7px 12px',border:`1px solid ${RED}`,borderRadius:7,fontSize:13,color:DARK,fontFamily:'Inter,sans-serif'}}/>
                               </div>
                             ))}
                           </div>
                         )}
                         <div style={{display:'flex',alignItems:'center',justifyContent:'space-between'}}>
-                          <div style={{fontSize:12,color:'#aaa'}}>
-                            {group.kpis.filter((k: any) => kpiDecisions[k.id]==='approve').length} approved · {group.kpis.filter((k: any) => kpiDecisions[k.id]==='reject').length} flagged · {group.kpis.filter((k: any) => !kpiDecisions[k.id]).length} undecided
-                          </div>
-                          <button
-                            onClick={() => {
-                              if (!allDecided) { setMsg('❌ Please tick or reject every KPI before submitting.'); return }
-                              if (missingInstructions) { setMsg('❌ Please add a re-scrape instruction for every rejected KPI.'); return }
-                              submitBrandDecisions(group)
-                            }}
-                            disabled={loading}
-                            style={{padding:'9px 20px',background:allDecided&&!missingInstructions?GOLD:'#e0e0e0',color:allDecided&&!missingInstructions?DEEP:'#aaa',border:'none',borderRadius:8,fontSize:13,fontWeight:600,cursor:allDecided?'pointer':'not-allowed',fontFamily:'Inter,sans-serif'}}
-                          >{loading ? 'Submitting...' : 'Submit decisions →'}</button>
+                          <div style={{fontSize:12,color:'#aaa'}}>{group.kpis.filter((k:any)=>kpiDecisions[k.id]==='approve').length} approved · {group.kpis.filter((k:any)=>kpiDecisions[k.id]==='reject').length} flagged · {group.kpis.filter((k:any)=>!kpiDecisions[k.id]).length} undecided</div>
+                          <button onClick={() => { if(!allDecided){setMsg('❌ Please tick or reject every KPI before submitting.');return} if(missingInstructions){setMsg('❌ Please add a re-scrape instruction for every rejected KPI.');return} submitBrandDecisions(group) }} disabled={loading}
+                            style={{padding:'9px 20px',background:allDecided&&!missingInstructions?GOLD:'#e0e0e0',color:allDecided&&!missingInstructions?DEEP:'#aaa',border:'none',borderRadius:8,fontSize:13,fontWeight:600,cursor:allDecided?'pointer':'not-allowed',fontFamily:'Inter,sans-serif'}}>
+                            {loading?'Submitting...':'Submit decisions →'}
+                          </button>
                         </div>
                       </div>
                     )
@@ -478,23 +425,20 @@ export default function AdminPage() {
               )}
             </div>
 
-            {/* EYE PENDING — per theme tick/reject */}
+            {/* EYE */}
             <div>
-              <div style={{fontSize:11,fontWeight:600,color:MID_GREEN,textTransform:'uppercase',letterSpacing:'0.1em',marginBottom:12}}>
-                Solomon&apos;s Eye — Pending review ({pendingAudits.length})
-              </div>
+              <div style={{fontSize:11,fontWeight:600,color:MID_GREEN,textTransform:'uppercase',letterSpacing:'0.1em',marginBottom:12}}>Solomon&apos;s Eye — Pending review ({pendingAudits.length})</div>
               {pendingAudits.length === 0 ? (
                 <div style={{background:WHITE,border:`1px solid ${BORDER}`,borderRadius:12,padding:'24px',textAlign:'center',color:'#aaa',fontSize:13}}>No pending Eye audits. All clear.</div>
               ) : (
                 <div style={{display:'flex',flexDirection:'column',gap:16}}>
                   {pendingAudits.map(audit => {
                     const themes = auditThemes[audit.id] || []
-                    const rejectedThemes = themes.filter(t => themeDecisions[t.id] === 'reject')
-                    const allThemesDecided = themes.length > 0 && themes.every(t => themeDecisions[t.id] !== null && themeDecisions[t.id] !== undefined)
+                    const rejectedThemes = themes.filter(t => themeDecisions[t.id]==='reject')
+                    const allThemesDecided = themes.length > 0 && themes.every(t => !!themeDecisions[t.id])
                     const missingThemeInstructions = rejectedThemes.some(t => !themeInstructions[t.id])
                     return (
                       <div key={audit.id} style={{background:WHITE,border:`1px solid ${BORDER}`,borderRadius:12,padding:'20px 24px'}}>
-                        {/* Header */}
                         <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:16}}>
                           <div>
                             <span style={{fontSize:15,fontWeight:700,color:DARK}}>{getBrandName(audit.brand_id)}</span>
@@ -502,83 +446,58 @@ export default function AdminPage() {
                           </div>
                           <span style={{fontSize:10,fontWeight:600,padding:'3px 10px',borderRadius:20,background:'rgba(31,74,47,0.1)',color:MID_GREEN}}>Pending review</span>
                         </div>
-
-                        {/* Audit overview */}
                         <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:10,marginBottom:16}}>
-                          {[
-                            {label:'Overall CX NPS', val: audit.overall_cx_nps !== null ? (audit.overall_cx_nps > 0 ? `+${audit.overall_cx_nps}` : audit.overall_cx_nps) : '--'},
-                            {label:'Total signals', val: audit.total_signals?.toLocaleString() || '--'},
-                            {label:'Audit type', val: audit.audit_type || '--'},
-                          ].map(f => (
+                          {[{label:'Overall CX NPS',val:audit.overall_cx_nps!==null?(audit.overall_cx_nps>0?`+${audit.overall_cx_nps}`:audit.overall_cx_nps):'--'},{label:'Total signals',val:audit.total_signals?.toLocaleString()||'--'},{label:'Audit type',val:audit.audit_type||'--'}].map(f => (
                             <div key={f.label} style={{background:'#f9f9f9',borderRadius:8,padding:'10px 12px'}}>
                               <div style={{fontSize:9,fontWeight:600,color:MID_GREEN,textTransform:'uppercase',letterSpacing:'0.1em',marginBottom:4}}>{f.label}</div>
                               <div style={{fontSize:18,fontWeight:700,color:DARK,fontFamily:'Georgia,serif'}}>{f.val}</div>
                             </div>
                           ))}
                         </div>
-
-                        {/* CX theme cards with tick/reject */}
                         <div style={{fontSize:11,fontWeight:600,color:BODY_TEXT,textTransform:'uppercase',letterSpacing:'0.1em',marginBottom:10}}>CX themes</div>
                         {themes.length === 0 ? (
                           <div style={{fontSize:13,color:'#aaa',marginBottom:16}}>No theme scores found for this audit.</div>
                         ) : (
                           <div style={{display:'grid',gridTemplateColumns:'repeat(5,1fr)',gap:10,marginBottom:16}}>
                             {CX_THEMES.map(themeName => {
-                              const theme = themes.find(t => t.theme === themeName)
+                              const theme = themes.find(t => t.theme===themeName)
                               const decision = theme ? themeDecisions[theme.id] : null
                               return (
                                 <div key={themeName} style={{background:'#f9f9f9',borderRadius:10,padding:'12px 10px',textAlign:'center',border:`2px solid ${decision==='approve'?GREEN:decision==='reject'?RED:BORDER}`}}>
                                   <div style={{fontSize:9,fontWeight:600,color:MID_GREEN,textTransform:'uppercase',letterSpacing:'0.08em',marginBottom:6}}>{themeName}</div>
                                   <div style={{fontFamily:'Georgia,serif',fontSize:20,fontWeight:700,color:DARK,marginBottom:3}}>
-                                    {theme ? (theme.nps_score > 0 ? `+${theme.nps_score}` : theme.nps_score) : '--'}
+                                    {theme ? (theme.nps_score>0?`+${theme.nps_score}`:theme.nps_score) : '--'}
                                   </div>
-                                  {theme && (
+                                  {theme ? (
                                     <>
                                       <div style={{fontSize:10,color:BODY_TEXT,marginBottom:6,textTransform:'capitalize'}}>{theme.sentiment}</div>
                                       <div style={{display:'flex',gap:4,justifyContent:'center'}}>
-                                        <button onClick={() => setThemeDecisions(prev => ({...prev, [theme.id]: 'approve'}))} style={{width:28,height:28,borderRadius:6,border:`1px solid ${decision==='approve'?GREEN:BORDER}`,background:decision==='approve'?GREEN:WHITE,color:decision==='approve'?WHITE:'#aaa',fontSize:13,cursor:'pointer',fontWeight:700}}>✓</button>
-                                        <button onClick={() => setThemeDecisions(prev => ({...prev, [theme.id]: 'reject'}))} style={{width:28,height:28,borderRadius:6,border:`1px solid ${decision==='reject'?RED:BORDER}`,background:decision==='reject'?RED:WHITE,color:decision==='reject'?WHITE:'#aaa',fontSize:13,cursor:'pointer',fontWeight:700}}>✗</button>
+                                        <button onClick={() => setThemeDecisions(prev => ({...prev,[theme.id]:'approve'}))} style={{width:28,height:28,borderRadius:6,border:`1px solid ${decision==='approve'?GREEN:BORDER}`,background:decision==='approve'?GREEN:WHITE,color:decision==='approve'?WHITE:'#aaa',fontSize:13,cursor:'pointer',fontWeight:700}}>✓</button>
+                                        <button onClick={() => setThemeDecisions(prev => ({...prev,[theme.id]:'reject'}))} style={{width:28,height:28,borderRadius:6,border:`1px solid ${decision==='reject'?RED:BORDER}`,background:decision==='reject'?RED:WHITE,color:decision==='reject'?WHITE:'#aaa',fontSize:13,cursor:'pointer',fontWeight:700}}>✗</button>
                                       </div>
                                     </>
-                                  )}
-                                  {!theme && <div style={{fontSize:10,color:'#ccc'}}>No data</div>}
+                                  ) : <div style={{fontSize:10,color:'#ccc'}}>No data</div>}
                                 </div>
                               )
                             })}
                           </div>
                         )}
-
-                        {/* Rejection instruction fields */}
                         {rejectedThemes.length > 0 && (
                           <div style={{marginBottom:16,display:'flex',flexDirection:'column',gap:8}}>
                             {rejectedThemes.map(theme => (
                               <div key={theme.id} style={{display:'flex',alignItems:'center',gap:8}}>
                                 <span style={{fontSize:11,fontWeight:600,color:RED,textTransform:'uppercase',minWidth:120}}>{theme.theme}</span>
-                                <input
-                                  placeholder={`Re-scrape instruction for ${theme.theme}...`}
-                                  value={themeInstructions[theme.id] || ''}
-                                  onChange={e => setThemeInstructions(prev => ({...prev, [theme.id]: e.target.value}))}
-                                  style={{flex:1,padding:'7px 12px',border:`1px solid ${RED}`,borderRadius:7,fontSize:13,color:DARK,fontFamily:'Inter,sans-serif'}}
-                                />
+                                <input placeholder={`Re-scrape instruction for ${theme.theme}...`} value={themeInstructions[theme.id]||''} onChange={e => setThemeInstructions(prev => ({...prev,[theme.id]:e.target.value}))} style={{flex:1,padding:'7px 12px',border:`1px solid ${RED}`,borderRadius:7,fontSize:13,color:DARK,fontFamily:'Inter,sans-serif'}}/>
                               </div>
                             ))}
                           </div>
                         )}
-
-                        {/* Submit */}
                         <div style={{display:'flex',alignItems:'center',justifyContent:'space-between'}}>
-                          <div style={{fontSize:12,color:'#aaa'}}>
-                            {themes.filter(t => themeDecisions[t.id]==='approve').length} approved · {themes.filter(t => themeDecisions[t.id]==='reject').length} flagged · {themes.filter(t => !themeDecisions[t.id]).length} undecided
-                          </div>
-                          <button
-                            onClick={() => {
-                              if (!allThemesDecided) { setMsg('❌ Please tick or reject every CX theme before submitting.'); return }
-                              if (missingThemeInstructions) { setMsg('❌ Please add a re-scrape instruction for every rejected theme.'); return }
-                              submitAuditDecisions(audit)
-                            }}
-                            disabled={loading}
-                            style={{padding:'9px 20px',background:allThemesDecided&&!missingThemeInstructions?GOLD:'#e0e0e0',color:allThemesDecided&&!missingThemeInstructions?DEEP:'#aaa',border:'none',borderRadius:8,fontSize:13,fontWeight:600,cursor:allThemesDecided?'pointer':'not-allowed',fontFamily:'Inter,sans-serif'}}
-                          >{loading ? 'Submitting...' : 'Submit decisions →'}</button>
+                          <div style={{fontSize:12,color:'#aaa'}}>{themes.filter(t=>themeDecisions[t.id]==='approve').length} approved · {themes.filter(t=>themeDecisions[t.id]==='reject').length} flagged · {themes.filter(t=>!themeDecisions[t.id]).length} undecided</div>
+                          <button onClick={() => { if(!allThemesDecided){setMsg('❌ Please tick or reject every CX theme before submitting.');return} if(missingThemeInstructions){setMsg('❌ Please add a re-scrape instruction for every rejected theme.');return} submitAuditDecisions(audit) }} disabled={loading}
+                            style={{padding:'9px 20px',background:allThemesDecided&&!missingThemeInstructions?GOLD:'#e0e0e0',color:allThemesDecided&&!missingThemeInstructions?DEEP:'#aaa',border:'none',borderRadius:8,fontSize:13,fontWeight:600,cursor:allThemesDecided?'pointer':'not-allowed',fontFamily:'Inter,sans-serif'}}>
+                            {loading?'Submitting...':'Submit decisions →'}
+                          </button>
                         </div>
                       </div>
                     )
@@ -589,7 +508,7 @@ export default function AdminPage() {
           </div>
         )}
 
-        {/* SCRAPER INSTRUCTIONS */}
+        {/* SCRAPER */}
         {section === 'scraper' && (
           <div>
             <h1 style={{fontFamily:'Georgia,serif',fontSize:25,fontWeight:700,color:DARK,marginBottom:6}}>Scraper instructions</h1>
@@ -599,27 +518,14 @@ export default function AdminPage() {
                 <div key={b.id} style={{background:WHITE,border:`1px solid ${BORDER}`,borderRadius:12,padding:'16px 20px'}}>
                   <div style={{fontSize:14,fontWeight:600,color:DARK,marginBottom:4}}>{b.brand_name}</div>
                   <div style={{fontSize:12,color:'#aaa',marginBottom:10}}>{b.category}</div>
-                  <textarea
-                    placeholder="Add scraper instructions for this brand..."
-                    value={scraperInstructions[b.id] || ''}
-                    onChange={e => setScraperInstructions(prev => ({...prev, [b.id]: e.target.value}))}
-                    rows={3}
-                    style={{width:'100%',padding:'10px 12px',border:`1px solid ${BORDER}`,borderRadius:8,fontSize:13,color:DARK,fontFamily:'Inter,sans-serif',resize:'vertical',marginBottom:8}}
-                  />
+                  <textarea placeholder="Add scraper instructions for this brand..." value={scraperInstructions[b.id]||''} onChange={e => setScraperInstructions(prev => ({...prev,[b.id]:e.target.value}))} rows={3} style={{width:'100%',padding:'10px 12px',border:`1px solid ${BORDER}`,borderRadius:8,fontSize:13,color:DARK,fontFamily:'Inter,sans-serif',resize:'vertical',marginBottom:8}}/>
                   <div style={{display:'flex',gap:8}}>
-                    <button
-                      onClick={async () => {
-                        const instruction = scraperInstructions[b.id] || ''
-                        if (!instruction) { setMsg('❌ Please add an instruction first.'); return }
-                        await fetch(`${SUPABASE_URL}/rest/v1/brands?id=eq.${b.id}`, {
-                          method: 'PATCH',
-                          headers: { ...headers, 'Prefer': 'return=minimal' },
-                          body: JSON.stringify({ scraper_instruction: instruction })
-                        })
-                        setMsg('✅ Instruction saved. Awaiting your confirmation before scraper runs.')
-                      }}
-                      style={{padding:'7px 14px',background:GOLD,color:DEEP,border:'none',borderRadius:7,fontSize:12,fontWeight:600,cursor:'pointer',fontFamily:'Inter,sans-serif'}}
-                    >Save instruction</button>
+                    <button onClick={async () => {
+                      const instruction = scraperInstructions[b.id]||''
+                      if(!instruction){setMsg('❌ Please add an instruction first.');return}
+                      await fetch(`${SUPABASE_URL}/rest/v1/brands?id=eq.${b.id}`,{method:'PATCH',headers:{...headers,'Prefer':'return=minimal'},body:JSON.stringify({scraper_instruction:instruction})})
+                      setMsg('✅ Instruction saved. Awaiting your confirmation before scraper runs.')
+                    }} style={{padding:'7px 14px',background:GOLD,color:DEEP,border:'none',borderRadius:7,fontSize:12,fontWeight:600,cursor:'pointer',fontFamily:'Inter,sans-serif'}}>Save instruction</button>
                     <span style={{fontSize:11,color:'#aaa',alignSelf:'center'}}>Scraper will not run until you confirm execution separately.</span>
                   </div>
                 </div>
