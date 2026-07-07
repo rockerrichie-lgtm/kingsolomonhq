@@ -19,6 +19,7 @@ const ADMIN_PASSWORD = 'ks-admin-2026'
 const KPI_NAMES = ['awareness', 'consideration', 'usage', 'imagery', 'buzz']
 
 type Section = 'payments' | 'clients' | 'approval' | 'scraper'
+type KpiDecision = 'approve' | 'reject' | null
 
 export default function AdminPage() {
   const [password, setPassword] = useState('')
@@ -32,8 +33,15 @@ export default function AdminPage() {
   const [clientOrders, setClientOrders] = useState<any[]>([])
   const [loading, setLoading] = useState(false)
   const [msg, setMsg] = useState('')
-  const [rejectionNotes, setRejectionNotes] = useState<Record<string, string>>({})
   const [scraperInstructions, setScraperInstructions] = useState<Record<string, string>>({})
+
+  // Per-KPI decisions: { kpiId: 'approve' | 'reject' | null }
+  const [kpiDecisions, setKpiDecisions] = useState<Record<string, KpiDecision>>({})
+  // Per-KPI rejection instructions: { kpiId: 'instruction text' }
+  const [kpiInstructions, setKpiInstructions] = useState<Record<string, string>>({})
+  // Per-audit decisions
+  const [auditDecisions, setAuditDecisions] = useState<Record<string, KpiDecision>>({})
+  const [auditInstructions, setAuditInstructions] = useState<Record<string, string>>({})
 
   const anon = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ''
   const headers = {
@@ -55,7 +63,7 @@ export default function AdminPage() {
   }
 
   const fetchPendingKpis = async () => {
-    const res = await fetch(`${SUPABASE_URL}/rest/v1/kpi_snapshots?select=*&status=eq.pending_review&order=created_at.desc`, { headers })
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/kpi_snapshots?select=*&status=eq.pending_review&snapshot_type=eq.brand_level&competitor_id=is.null&order=created_at.desc`, { headers })
     const data = await res.json()
     setPendingKpis(Array.isArray(data) ? data : [])
   }
@@ -81,6 +89,8 @@ export default function AdminPage() {
     }
   }, [authed])
 
+  const getBrandName = (brandId: string) => brands.find(b => b.id === brandId)?.brand_name || brandId.slice(0, 8)
+
   const markPaid = async (orderId: string) => {
     await fetch(`${SUPABASE_URL}/rest/v1/orders?id=eq.${orderId}`, {
       method: 'PATCH',
@@ -91,86 +101,92 @@ export default function AdminPage() {
     fetchOrders()
   }
 
-  const approveKpi = async (kpiId: string, brandId: string) => {
+  // Group pending KPIs by brand+checkpoint
+  const groupedKpis = pendingKpis.reduce((acc: any, kpi: any) => {
+    const key = `${kpi.brand_id}__${kpi.checkpoint}__${kpi.created_at?.slice(0, 10)}`
+    if (!acc[key]) acc[key] = { brand_id: kpi.brand_id, checkpoint: kpi.checkpoint, date: kpi.created_at, kpis: [] }
+    acc[key].kpis.push(kpi)
+    return acc
+  }, {})
+  const brandGroups = Object.values(groupedKpis) as any[]
+
+  const submitBrandDecisions = async (group: any) => {
     setLoading(true)
-    await fetch(`${SUPABASE_URL}/rest/v1/kpi_snapshots?id=eq.${kpiId}`, {
-      method: 'PATCH',
-      headers: { ...headers, 'Prefer': 'return=minimal' },
-      body: JSON.stringify({
-        status: 'published',
-        approved_at: new Date().toISOString(),
-      })
-    })
-    // Check if all KPIs for this brand are now published — if so set iq_report_ready
-    const res = await fetch(`${SUPABASE_URL}/rest/v1/kpi_snapshots?brand_id=eq.${brandId}&status=eq.pending_review&select=id`, { headers })
-    const remaining = await res.json()
-    if (Array.isArray(remaining) && remaining.length === 0) {
-      await fetch(`${SUPABASE_URL}/rest/v1/brands?id=eq.${brandId}`, {
+    setMsg('')
+    const { brand_id, kpis } = group
+    let approvedCount = 0
+    let rejectedCount = 0
+
+    for (const kpi of kpis) {
+      const decision = kpiDecisions[kpi.id]
+      if (decision === 'approve') {
+        await fetch(`${SUPABASE_URL}/rest/v1/kpi_snapshots?id=eq.${kpi.id}`, {
+          method: 'PATCH',
+          headers: { ...headers, 'Prefer': 'return=minimal' },
+          body: JSON.stringify({ status: 'published', approved_at: new Date().toISOString() })
+        })
+        approvedCount++
+      } else if (decision === 'reject') {
+        const instruction = kpiInstructions[kpi.id] || ''
+        await fetch(`${SUPABASE_URL}/rest/v1/kpi_snapshots?id=eq.${kpi.id}`, {
+          method: 'PATCH',
+          headers: { ...headers, 'Prefer': 'return=minimal' },
+          body: JSON.stringify({ status: 'rejected', rejection_note: instruction, scraper_instruction: instruction })
+        })
+        rejectedCount++
+      }
+    }
+
+    // If all approved — check if report should unlock
+    if (rejectedCount === 0 && approvedCount > 0) {
+      const res = await fetch(`${SUPABASE_URL}/rest/v1/kpi_snapshots?brand_id=eq.${brand_id}&status=eq.pending_review&competitor_id=is.null&select=id`, { headers })
+      const remaining = await res.json()
+      if (Array.isArray(remaining) && remaining.length === 0) {
+        await fetch(`${SUPABASE_URL}/rest/v1/brands?id=eq.${brand_id}`, {
+          method: 'PATCH',
+          headers: { ...headers, 'Prefer': 'return=minimal' },
+          body: JSON.stringify({ iq_report_ready: true })
+        })
+        setMsg(`✅ All KPIs approved and published. IQ report unlocked for client.`)
+      } else {
+        setMsg(`✅ ${approvedCount} KPI${approvedCount > 1 ? 's' : ''} approved and published to client dashboard.`)
+      }
+    } else {
+      setMsg(`✅ ${approvedCount} approved, ${rejectedCount} flagged for re-scrape. Client sees data being prepared.`)
+    }
+
+    fetchPendingKpis()
+    setLoading(false)
+  }
+
+  const submitAuditDecision = async (audit: any) => {
+    setLoading(true)
+    const decision = auditDecisions[audit.id]
+    if (decision === 'approve') {
+      await fetch(`${SUPABASE_URL}/rest/v1/cx_audits?id=eq.${audit.id}`, {
         method: 'PATCH',
         headers: { ...headers, 'Prefer': 'return=minimal' },
-        body: JSON.stringify({ iq_report_ready: true })
+        body: JSON.stringify({ status: 'published' })
       })
-      setMsg('✅ KPI approved. All KPIs published — IQ report unlocked for client.')
+      await fetch(`${SUPABASE_URL}/rest/v1/brands?id=eq.${audit.brand_id}`, {
+        method: 'PATCH',
+        headers: { ...headers, 'Prefer': 'return=minimal' },
+        body: JSON.stringify({ eye_report_ready: true })
+      })
+      setMsg('✅ Eye audit approved. Dashboard and report unlocked for client.')
+    } else if (decision === 'reject') {
+      await fetch(`${SUPABASE_URL}/rest/v1/cx_audits?id=eq.${audit.id}`, {
+        method: 'PATCH',
+        headers: { ...headers, 'Prefer': 'return=minimal' },
+        body: JSON.stringify({ status: 'pending_review', notes: auditInstructions[audit.id] || '' })
+      })
+      setMsg('✅ Eye audit flagged for re-scrape. Client sees data being prepared.')
     } else {
-      setMsg('✅ KPI approved and published to client dashboard.')
+      setMsg('❌ Please tick or reject the audit before submitting.')
     }
-    fetchPendingKpis()
-    setLoading(false)
-  }
-
-  const rejectKpi = async (kpiId: string) => {
-    const note = rejectionNotes[kpiId] || ''
-    if (!note) { setMsg('❌ Please add a re-scrape instruction before rejecting.'); return }
-    setLoading(true)
-    await fetch(`${SUPABASE_URL}/rest/v1/kpi_snapshots?id=eq.${kpiId}`, {
-      method: 'PATCH',
-      headers: { ...headers, 'Prefer': 'return=minimal' },
-      body: JSON.stringify({
-        status: 'rejected',
-        rejection_note: note,
-        scraper_instruction: note,
-      })
-    })
-    setMsg('✅ Flagged for re-scrape. Instruction saved. Client sees data being prepared.')
-    fetchPendingKpis()
-    setLoading(false)
-  }
-
-  const approveAudit = async (auditId: string, brandId: string) => {
-    setLoading(true)
-    await fetch(`${SUPABASE_URL}/rest/v1/cx_audits?id=eq.${auditId}`, {
-      method: 'PATCH',
-      headers: { ...headers, 'Prefer': 'return=minimal' },
-      body: JSON.stringify({ status: 'published' })
-    })
-    await fetch(`${SUPABASE_URL}/rest/v1/brands?id=eq.${brandId}`, {
-      method: 'PATCH',
-      headers: { ...headers, 'Prefer': 'return=minimal' },
-      body: JSON.stringify({ eye_report_ready: true })
-    })
-    setMsg('✅ Eye audit approved. Dashboard and report unlocked for client.')
     fetchPendingAudits()
     setLoading(false)
   }
-
-  const rejectAudit = async (auditId: string) => {
-    const note = rejectionNotes[auditId] || ''
-    if (!note) { setMsg('❌ Please add a re-scrape instruction before rejecting.'); return }
-    setLoading(true)
-    await fetch(`${SUPABASE_URL}/rest/v1/cx_audits?id=eq.${auditId}`, {
-      method: 'PATCH',
-      headers: { ...headers, 'Prefer': 'return=minimal' },
-      body: JSON.stringify({
-        status: 'pending_review',
-        notes: note,
-      })
-    })
-    setMsg('✅ Flagged for re-scrape. Client sees data being prepared.')
-    fetchPendingAudits()
-    setLoading(false)
-  }
-
-  const getBrandName = (brandId: string) => brands.find(b => b.id === brandId)?.brand_name || brandId.slice(0, 8)
 
   if (!authed) return (
     <div style={{minHeight:'100vh',background:DEEP,display:'flex',alignItems:'center',justifyContent:'center'}}>
@@ -216,8 +232,8 @@ export default function AdminPage() {
             style={{padding:'10px 16px',fontSize:13,color:section===key?CREAM:CREAM_DIM,borderLeft:section===key?`2px solid ${GOLD}`:'2px solid transparent',background:section===key?'rgba(201,168,76,0.08)':'transparent',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'space-between'}}
           >
             <span>{label}</span>
-            {key === 'approval' && pendingKpis.length + pendingAudits.length > 0 && (
-              <span style={{background:RED,color:WHITE,fontSize:10,fontWeight:700,padding:'1px 6px',borderRadius:20}}>{pendingKpis.length + pendingAudits.length}</span>
+            {key === 'approval' && (brandGroups.length + pendingAudits.length) > 0 && (
+              <span style={{background:RED,color:WHITE,fontSize:10,fontWeight:700,padding:'1px 6px',borderRadius:20}}>{brandGroups.length + pendingAudits.length}</span>
             )}
           </div>
         ))}
@@ -285,11 +301,7 @@ export default function AdminPage() {
                 const hasIQ = bOrders.some(o => o.product === 'iq' && o.status === 'paid')
                 const hasEye = bOrders.some(o => o.product === 'eye' && o.status === 'paid')
                 return (
-                  <div
-                    key={b.id}
-                    onClick={() => { setSelectedClient(b); fetchClientOrders(b.user_id) }}
-                    style={{background:WHITE,border:`1px solid ${BORDER}`,borderRadius:12,padding:'18px 20px',cursor:'pointer',transition:'box-shadow 0.15s'}}
-                  >
+                  <div key={b.id} onClick={() => { setSelectedClient(b); fetchClientOrders(b.user_id) }} style={{background:WHITE,border:`1px solid ${BORDER}`,borderRadius:12,padding:'18px 20px',cursor:'pointer'}}>
                     <div style={{fontSize:15,fontWeight:700,color:DARK,marginBottom:4}}>{b.brand_name}</div>
                     <div style={{fontSize:13,color:BODY_TEXT,marginBottom:8}}>{b.category}</div>
                     <div style={{fontSize:12,color:'#aaa',marginBottom:10}}>{[b.competitor_1,b.competitor_2,b.competitor_3].filter(Boolean).join(', ')}</div>
@@ -306,13 +318,12 @@ export default function AdminPage() {
           </div>
         )}
 
-        {/* CLIENT DETAIL VIEW */}
+        {/* CLIENT DETAIL */}
         {(section === 'clients' || section === 'payments') && selectedClient && (
           <div>
             <button onClick={() => setSelectedClient(null)} style={{fontSize:13,color:GOLD,background:'none',border:'none',cursor:'pointer',marginBottom:16,fontFamily:'Inter,sans-serif'}}>← Back</button>
             <h1 style={{fontFamily:'Georgia,serif',fontSize:25,fontWeight:700,color:DARK,marginBottom:4}}>{selectedClient.brand_name}</h1>
             <p style={{fontSize:14,color:BODY_TEXT,marginBottom:20}}>{selectedClient.category} · vs {[selectedClient.competitor_1,selectedClient.competitor_2,selectedClient.competitor_3].filter(Boolean).join(', ')}</p>
-
             <div style={{fontSize:11,fontWeight:600,color:GOLD,textTransform:'uppercase',letterSpacing:'0.1em',marginBottom:12}}>Purchase history</div>
             <div style={{background:WHITE,border:`1px solid ${BORDER}`,borderRadius:12,overflow:'hidden',marginBottom:24}}>
               <table style={{width:'100%',borderCollapse:'collapse',fontSize:13}}>
@@ -339,7 +350,6 @@ export default function AdminPage() {
                 </tbody>
               </table>
             </div>
-
             <div style={{fontSize:11,fontWeight:600,color:GOLD,textTransform:'uppercase',letterSpacing:'0.1em',marginBottom:12}}>Brand details</div>
             <div style={{background:WHITE,border:`1px solid ${BORDER}`,borderRadius:12,padding:'16px 20px',display:'grid',gridTemplateColumns:'1fr 1fr',gap:12}}>
               {[
@@ -361,92 +371,176 @@ export default function AdminPage() {
         {section === 'approval' && (
           <div>
             <h1 style={{fontFamily:'Georgia,serif',fontSize:25,fontWeight:700,color:DARK,marginBottom:6}}>Data approval</h1>
-            <p style={{fontSize:14,color:BODY_TEXT,marginBottom:20}}>Review all pending data before it reaches clients. Approve to publish. Add re-scrape instructions to flag for re-collection. Clients see only "data being prepared" until you approve.</p>
+            <p style={{fontSize:14,color:BODY_TEXT,marginBottom:20}}>Tick or reject each KPI. Rejected KPIs require a re-scrape instruction. Hit Submit to process all decisions at once. Clients see only "data being prepared" until you approve.</p>
 
-            {/* IQ pending */}
+            {/* IQ PENDING — grouped by brand */}
             <div style={{marginBottom:32}}>
               <div style={{fontSize:11,fontWeight:600,color:GOLD,textTransform:'uppercase',letterSpacing:'0.1em',marginBottom:12}}>
-                Solomon's IQ — Pending review ({pendingKpis.length})
+                Solomon&apos;s IQ — Pending review ({brandGroups.length})
               </div>
-              {pendingKpis.length === 0 ? (
+
+              {brandGroups.length === 0 ? (
                 <div style={{background:WHITE,border:`1px solid ${BORDER}`,borderRadius:12,padding:'24px',textAlign:'center',color:'#aaa',fontSize:13}}>No pending IQ scores. All clear.</div>
               ) : (
-                <div style={{display:'flex',flexDirection:'column',gap:12}}>
-                  {pendingKpis.map(kpi => (
-                    <div key={kpi.id} style={{background:WHITE,border:`1px solid ${BORDER}`,borderRadius:12,padding:'16px 20px'}}>
-                      <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:12}}>
-                        <div>
-                          <span style={{fontSize:13,fontWeight:600,color:DARK}}>{getBrandName(kpi.brand_id)}</span>
-                          <span style={{fontSize:11,color:'#aaa',marginLeft:8}}>{kpi.checkpoint} · {new Date(kpi.created_at).toLocaleDateString('en-IN',{day:'numeric',month:'short'})}</span>
-                        </div>
-                        <span style={{fontSize:10,fontWeight:600,padding:'2px 8px',borderRadius:20,background:'rgba(201,168,76,0.1)',color:AMBER}}>Pending review</span>
-                      </div>
-                      <div style={{display:'grid',gridTemplateColumns:'repeat(5,1fr)',gap:8,marginBottom:12}}>
-                        {KPI_NAMES.map(k => (
-                          <div key={k} style={{background:'#f9f9f9',borderRadius:8,padding:'8px 10px',textAlign:'center'}}>
-                            <div style={{fontSize:9,fontWeight:600,color:GOLD,textTransform:'uppercase',letterSpacing:'0.1em',marginBottom:4}}>{k}</div>
-                            <div style={{fontSize:18,fontWeight:700,color:DARK,fontFamily:'Georgia,serif'}}>{kpi.kpi_name === k ? kpi.score : '--'}</div>
+                <div style={{display:'flex',flexDirection:'column',gap:16}}>
+                  {brandGroups.map((group: any) => {
+                    const groupKey = `${group.brand_id}__${group.checkpoint}__${group.date?.slice(0,10)}`
+                    const allDecided = group.kpis.every((k: any) => kpiDecisions[k.id] !== null && kpiDecisions[k.id] !== undefined)
+                    const anyRejected = group.kpis.some((k: any) => kpiDecisions[k.id] === 'reject')
+                    const rejectedKpis = group.kpis.filter((k: any) => kpiDecisions[k.id] === 'reject')
+                    const missingInstructions = rejectedKpis.some((k: any) => !kpiInstructions[k.id])
+
+                    return (
+                      <div key={groupKey} style={{background:WHITE,border:`1px solid ${BORDER}`,borderRadius:12,padding:'20px 24px'}}>
+
+                        {/* Header */}
+                        <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:16}}>
+                          <div>
+                            <span style={{fontSize:15,fontWeight:700,color:DARK}}>{getBrandName(group.brand_id)}</span>
+                            <span style={{fontSize:11,color:'#aaa',marginLeft:10}}>{group.checkpoint} · {new Date(group.date).toLocaleDateString('en-IN',{day:'numeric',month:'short',year:'numeric'})}</span>
                           </div>
-                        ))}
+                          <span style={{fontSize:10,fontWeight:600,padding:'3px 10px',borderRadius:20,background:'rgba(201,168,76,0.1)',color:AMBER}}>Pending review</span>
+                        </div>
+
+                        {/* KPI grid with tick/reject per KPI */}
+                        <div style={{display:'grid',gridTemplateColumns:'repeat(5,1fr)',gap:10,marginBottom:16}}>
+                          {KPI_NAMES.map(kpiName => {
+                            const kpi = group.kpis.find((k: any) => k.kpi_name === kpiName)
+                            const decision = kpi ? kpiDecisions[kpi.id] : null
+                            return (
+                              <div key={kpiName} style={{background:'#f9f9f9',borderRadius:10,padding:'12px 10px',textAlign:'center',border:`2px solid ${decision === 'approve' ? GREEN : decision === 'reject' ? RED : BORDER}`}}>
+                                <div style={{fontSize:9,fontWeight:600,color:GOLD,textTransform:'uppercase',letterSpacing:'0.1em',marginBottom:6}}>{kpiName}</div>
+                                <div style={{fontFamily:'Georgia,serif',fontSize:22,fontWeight:700,color:DARK,marginBottom:8}}>
+                                  {kpi ? (kpiName === 'buzz' && kpi.score > 0 ? `+${kpi.score}` : kpi.score) : '--'}
+                                </div>
+                                {kpi && (
+                                  <div style={{display:'flex',gap:4,justifyContent:'center'}}>
+                                    <button
+                                      onClick={() => setKpiDecisions(prev => ({...prev, [kpi.id]: 'approve'}))}
+                                      style={{width:28,height:28,borderRadius:6,border:`1px solid ${decision === 'approve' ? GREEN : BORDER}`,background:decision === 'approve' ? GREEN : WHITE,color:decision === 'approve' ? WHITE : '#aaa',fontSize:13,cursor:'pointer',fontWeight:700}}
+                                    >✓</button>
+                                    <button
+                                      onClick={() => setKpiDecisions(prev => ({...prev, [kpi.id]: 'reject'}))}
+                                      style={{width:28,height:28,borderRadius:6,border:`1px solid ${decision === 'reject' ? RED : BORDER}`,background:decision === 'reject' ? RED : WHITE,color:decision === 'reject' ? WHITE : '#aaa',fontSize:13,cursor:'pointer',fontWeight:700}}
+                                    >✗</button>
+                                  </div>
+                                )}
+                                {!kpi && <div style={{fontSize:10,color:'#ccc'}}>No data</div>}
+                              </div>
+                            )
+                          })}
+                        </div>
+
+                        {/* Re-scrape instruction fields — only for rejected KPIs */}
+                        {anyRejected && (
+                          <div style={{marginBottom:16,display:'flex',flexDirection:'column',gap:8}}>
+                            {rejectedKpis.map((kpi: any) => (
+                              <div key={kpi.id} style={{display:'flex',alignItems:'center',gap:8}}>
+                                <span style={{fontSize:11,fontWeight:600,color:RED,textTransform:'uppercase',minWidth:90}}>{kpi.kpi_name}</span>
+                                <input
+                                  placeholder={`Re-scrape instruction for ${kpi.kpi_name}...`}
+                                  value={kpiInstructions[kpi.id] || ''}
+                                  onChange={e => setKpiInstructions(prev => ({...prev, [kpi.id]: e.target.value}))}
+                                  style={{flex:1,padding:'7px 12px',border:`1px solid ${RED}`,borderRadius:7,fontSize:13,color:DARK,fontFamily:'Inter,sans-serif'}}
+                                />
+                              </div>
+                            ))}
+                          </div>
+                        )}
+
+                        {/* Submit button */}
+                        <div style={{display:'flex',alignItems:'center',justifyContent:'space-between'}}>
+                          <div style={{fontSize:12,color:'#aaa'}}>
+                            {group.kpis.filter((k: any) => kpiDecisions[k.id] === 'approve').length} approved · {group.kpis.filter((k: any) => kpiDecisions[k.id] === 'reject').length} flagged for re-scrape · {group.kpis.filter((k: any) => !kpiDecisions[k.id]).length} undecided
+                          </div>
+                          <button
+                            onClick={() => {
+                              if (!allDecided) { setMsg('❌ Please tick or reject every KPI before submitting.'); return }
+                              if (missingInstructions) { setMsg('❌ Please add a re-scrape instruction for every rejected KPI.'); return }
+                              submitBrandDecisions(group)
+                            }}
+                            disabled={loading}
+                            style={{padding:'9px 20px',background:allDecided && !missingInstructions ? GOLD : '#e0e0e0',color:allDecided && !missingInstructions ? DEEP : '#aaa',border:'none',borderRadius:8,fontSize:13,fontWeight:600,cursor:allDecided ? 'pointer' : 'not-allowed',fontFamily:'Inter,sans-serif'}}
+                          >
+                            {loading ? 'Submitting...' : 'Submit decisions →'}
+                          </button>
+                        </div>
+
                       </div>
-                      <div style={{display:'flex',gap:8,alignItems:'flex-start'}}>
-                        <input
-                          placeholder="Re-scrape instruction (required to flag for re-collection)..."
-                          value={rejectionNotes[kpi.id] || ''}
-                          onChange={e => setRejectionNotes(prev => ({...prev, [kpi.id]: e.target.value}))}
-                          style={{flex:1,padding:'8px 12px',border:`1px solid ${BORDER}`,borderRadius:7,fontSize:13,color:DARK,fontFamily:'Inter,sans-serif'}}
-                        />
-                        <button onClick={() => approveKpi(kpi.id, kpi.brand_id)} disabled={loading} style={{padding:'8px 16px',background:GREEN,color:WHITE,border:'none',borderRadius:7,fontSize:12,fontWeight:600,cursor:'pointer',fontFamily:'Inter,sans-serif',whiteSpace:'nowrap'}}>✓ Approve</button>
-                        <button onClick={() => rejectKpi(kpi.id)} disabled={loading} style={{padding:'8px 16px',background:'#f5f5f5',color:DARK,border:`1px solid ${BORDER}`,borderRadius:7,fontSize:12,fontWeight:600,cursor:'pointer',fontFamily:'Inter,sans-serif',whiteSpace:'nowrap'}}>↻ Re-scrape</button>
-                      </div>
-                    </div>
-                  ))}
+                    )
+                  })}
                 </div>
               )}
             </div>
 
-            {/* Eye pending */}
+            {/* EYE PENDING */}
             <div>
               <div style={{fontSize:11,fontWeight:600,color:MID_GREEN,textTransform:'uppercase',letterSpacing:'0.1em',marginBottom:12}}>
-                Solomon's Eye — Pending review ({pendingAudits.length})
+                Solomon&apos;s Eye — Pending review ({pendingAudits.length})
               </div>
               {pendingAudits.length === 0 ? (
                 <div style={{background:WHITE,border:`1px solid ${BORDER}`,borderRadius:12,padding:'24px',textAlign:'center',color:'#aaa',fontSize:13}}>No pending Eye audits. All clear.</div>
               ) : (
                 <div style={{display:'flex',flexDirection:'column',gap:12}}>
-                  {pendingAudits.map(audit => (
-                    <div key={audit.id} style={{background:WHITE,border:`1px solid ${BORDER}`,borderRadius:12,padding:'16px 20px'}}>
-                      <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:12}}>
-                        <div>
-                          <span style={{fontSize:13,fontWeight:600,color:DARK}}>{getBrandName(audit.brand_id)}</span>
-                          <span style={{fontSize:11,color:'#aaa',marginLeft:8}}>{audit.category_type} · Benchmark {audit.benchmark} · {new Date(audit.created_at).toLocaleDateString('en-IN',{day:'numeric',month:'short'})}</span>
-                        </div>
-                        <span style={{fontSize:10,fontWeight:600,padding:'2px 8px',borderRadius:20,background:'rgba(31,74,47,0.1)',color:MID_GREEN}}>Pending review</span>
-                      </div>
-                      <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:8,marginBottom:12}}>
-                        {[
-                          {label:'Overall CX NPS',val:audit.overall_cx_nps},
-                          {label:'Total signals',val:audit.total_signals?.toLocaleString()},
-                          {label:'Audit type',val:audit.audit_type},
-                        ].map(f => (
-                          <div key={f.label} style={{background:'#f9f9f9',borderRadius:8,padding:'8px 10px'}}>
-                            <div style={{fontSize:9,fontWeight:600,color:MID_GREEN,textTransform:'uppercase',letterSpacing:'0.1em',marginBottom:4}}>{f.label}</div>
-                            <div style={{fontSize:16,fontWeight:700,color:DARK,fontFamily:'Georgia,serif'}}>{f.val || '--'}</div>
+                  {pendingAudits.map(audit => {
+                    const decision = auditDecisions[audit.id]
+                    return (
+                      <div key={audit.id} style={{background:WHITE,border:`1px solid ${BORDER}`,borderRadius:12,padding:'20px 24px'}}>
+                        <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:16}}>
+                          <div>
+                            <span style={{fontSize:15,fontWeight:700,color:DARK}}>{getBrandName(audit.brand_id)}</span>
+                            <span style={{fontSize:11,color:'#aaa',marginLeft:10}}>{audit.category_type} · Benchmark {audit.benchmark} · {new Date(audit.created_at).toLocaleDateString('en-IN',{day:'numeric',month:'short'})}</span>
                           </div>
-                        ))}
+                          <span style={{fontSize:10,fontWeight:600,padding:'3px 10px',borderRadius:20,background:'rgba(31,74,47,0.1)',color:MID_GREEN}}>Pending review</span>
+                        </div>
+
+                        {/* Audit overview */}
+                        <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:10,marginBottom:16}}>
+                          {[
+                            {label:'Overall CX NPS', val: audit.overall_cx_nps !== null ? (audit.overall_cx_nps > 0 ? `+${audit.overall_cx_nps}` : audit.overall_cx_nps) : '--'},
+                            {label:'Total signals', val: audit.total_signals?.toLocaleString() || '--'},
+                            {label:'Audit type', val: audit.audit_type || '--'},
+                          ].map(f => (
+                            <div key={f.label} style={{background:'#f9f9f9',borderRadius:8,padding:'10px 12px'}}>
+                              <div style={{fontSize:9,fontWeight:600,color:MID_GREEN,textTransform:'uppercase',letterSpacing:'0.1em',marginBottom:4}}>{f.label}</div>
+                              <div style={{fontSize:18,fontWeight:700,color:DARK,fontFamily:'Georgia,serif'}}>{f.val}</div>
+                            </div>
+                          ))}
+                        </div>
+
+                        {/* Approve / Reject toggle */}
+                        <div style={{display:'flex',gap:8,marginBottom:decision === 'reject' ? 12 : 16}}>
+                          <button
+                            onClick={() => setAuditDecisions(prev => ({...prev, [audit.id]: 'approve'}))}
+                            style={{padding:'8px 18px',borderRadius:7,border:`1px solid ${decision === 'approve' ? GREEN : BORDER}`,background:decision === 'approve' ? GREEN : WHITE,color:decision === 'approve' ? WHITE : BODY_TEXT,fontSize:13,fontWeight:600,cursor:'pointer',fontFamily:'Inter,sans-serif'}}
+                          >✓ Approve</button>
+                          <button
+                            onClick={() => setAuditDecisions(prev => ({...prev, [audit.id]: 'reject'}))}
+                            style={{padding:'8px 18px',borderRadius:7,border:`1px solid ${decision === 'reject' ? RED : BORDER}`,background:decision === 'reject' ? RED : WHITE,color:decision === 'reject' ? WHITE : BODY_TEXT,fontSize:13,fontWeight:600,cursor:'pointer',fontFamily:'Inter,sans-serif'}}
+                          >✗ Re-scrape</button>
+                        </div>
+
+                        {decision === 'reject' && (
+                          <input
+                            placeholder="Re-scrape instruction for Eye audit..."
+                            value={auditInstructions[audit.id] || ''}
+                            onChange={e => setAuditInstructions(prev => ({...prev, [audit.id]: e.target.value}))}
+                            style={{width:'100%',padding:'8px 12px',border:`1px solid ${RED}`,borderRadius:7,fontSize:13,color:DARK,fontFamily:'Inter,sans-serif',marginBottom:12}}
+                          />
+                        )}
+
+                        <div style={{display:'flex',justifyContent:'flex-end'}}>
+                          <button
+                            onClick={() => submitAuditDecision(audit)}
+                            disabled={loading || !decision}
+                            style={{padding:'9px 20px',background:decision ? GOLD : '#e0e0e0',color:decision ? DEEP : '#aaa',border:'none',borderRadius:8,fontSize:13,fontWeight:600,cursor:decision ? 'pointer' : 'not-allowed',fontFamily:'Inter,sans-serif'}}
+                          >
+                            {loading ? 'Submitting...' : 'Submit decision →'}
+                          </button>
+                        </div>
                       </div>
-                      <div style={{display:'flex',gap:8,alignItems:'flex-start'}}>
-                        <input
-                          placeholder="Re-scrape instruction (required to flag for re-collection)..."
-                          value={rejectionNotes[audit.id] || ''}
-                          onChange={e => setRejectionNotes(prev => ({...prev, [audit.id]: e.target.value}))}
-                          style={{flex:1,padding:'8px 12px',border:`1px solid ${BORDER}`,borderRadius:7,fontSize:13,color:DARK,fontFamily:'Inter,sans-serif'}}
-                        />
-                        <button onClick={() => approveAudit(audit.id, audit.brand_id)} disabled={loading} style={{padding:'8px 16px',background:GREEN,color:WHITE,border:'none',borderRadius:7,fontSize:12,fontWeight:600,cursor:'pointer',fontFamily:'Inter,sans-serif',whiteSpace:'nowrap'}}>✓ Approve</button>
-                        <button onClick={() => rejectAudit(audit.id)} disabled={loading} style={{padding:'8px 16px',background:'#f5f5f5',color:DARK,border:`1px solid ${BORDER}`,borderRadius:7,fontSize:12,fontWeight:600,cursor:'pointer',fontFamily:'Inter,sans-serif',whiteSpace:'nowrap'}}>↻ Re-scrape</button>
-                      </div>
-                    </div>
-                  ))}
+                    )
+                  })}
                 </div>
               )}
             </div>
@@ -483,9 +577,7 @@ export default function AdminPage() {
                         setMsg('✅ Instruction saved. Awaiting your confirmation before scraper runs.')
                       }}
                       style={{padding:'7px 14px',background:GOLD,color:DEEP,border:'none',borderRadius:7,fontSize:12,fontWeight:600,cursor:'pointer',fontFamily:'Inter,sans-serif'}}
-                    >
-                      Save instruction
-                    </button>
+                    >Save instruction</button>
                     <span style={{fontSize:11,color:'#aaa',alignSelf:'center'}}>Scraper will not run until you confirm execution separately.</span>
                   </div>
                 </div>
