@@ -10,7 +10,7 @@ Sources:
   - OpenWeb Ninja (Trustpilot, Amazon, News)
   - Google Play Store reviews
   - Apple App Store reviews
-  - Google Alerts RSS (via Google News RSS)
+  - Google News RSS
 
 KPIs:
   IQ  — Awareness, Consideration, Usage, Imagery, Buzz
@@ -20,6 +20,10 @@ Product check:
   Only scrapes IQ data if client has paid for IQ
   Only scrapes Eye data if client has paid for Eye
   Skips brand entirely if neither is paid
+
+Region:
+  Reads geo from brands table — set by client on brand setup page
+  Passes geo to Google Trends and API Direct calls
 
 Run: py scraper.py
 """
@@ -116,7 +120,6 @@ USAGE_SIGNALS = {
     "repurchase","reorder","subscribe","subscription","recommend"
 }
 
-# Eye CX theme classifiers
 EYE_THEMES = {
     "Product": {
         "keywords": ["product","quality","formula","ingredients","packaging","smell","texture",
@@ -159,7 +162,7 @@ def classify_eye_theme(text: str) -> str:
 # ─── Google Trends ─────────────────────────────────────────────────────────────
 
 def fetch_google_trends_awareness(brand: str, competitors: list, geo: str = "IN") -> dict:
-    print(f"  [Google Trends] Awareness: {brand}")
+    print(f"  [Google Trends] Awareness: {brand} (geo={geo})")
     for attempt in range(3):
         try:
             from pytrends.request import TrendReq
@@ -190,7 +193,7 @@ def fetch_google_trends_awareness(brand: str, competitors: list, geo: str = "IN"
     return {"score": 0, "source": "Google Trends", "confidence": "unexplained"}
 
 def fetch_google_trends_consideration(brand: str, geo: str = "IN") -> dict:
-    print(f"  [Google Trends] Consideration: {brand}")
+    print(f"  [Google Trends] Consideration: {brand} (geo={geo})")
     for attempt in range(3):
         try:
             from pytrends.request import TrendReq
@@ -298,21 +301,24 @@ def fetch_trustpilot_reviews(brand: str) -> list:
         print(f"  [OpenWeb Ninja] Trustpilot error: {e}")
         return []
 
-def fetch_amazon_reviews(brand: str) -> list:
+def fetch_amazon_reviews(brand: str, geo: str = "IN") -> list:
     if not OPENWEBNINJA_KEY:
         return []
-    print(f"  [OpenWeb Ninja] Amazon: {brand}")
+    # Map geo code to Amazon country code
+    country_map = {"IN": "IN", "US": "US", "GB": "GB", "AU": "AU", "SG": "SG", "GLOBAL": "US"}
+    country = country_map.get(geo, "IN")
+    print(f"  [OpenWeb Ninja] Amazon: {brand} (country={country})")
     try:
         headers = {"x-api-key": OPENWEBNINJA_KEY}
         data = safe_get("https://api.openwebninja.com/realtime-amazon-data/product-search",
-                        params={"query": brand, "country": "IN", "page": 1}, headers=headers)
+                        params={"query": brand, "country": country, "page": 1}, headers=headers)
         if not data: return []
         products = data.get("data", {}).get("products", [])
         if not products: return []
         asin = products[0].get("asin", "")
         if not asin: return []
         reviews_data = safe_get("https://api.openwebninja.com/realtime-amazon-data/product-reviews",
-                                params={"asin": asin, "country": "IN", "page": 1}, headers=headers)
+                                params={"asin": asin, "country": country, "page": 1}, headers=headers)
         if not reviews_data: return []
         reviews = reviews_data.get("data", {}).get("reviews", [])
         texts = [f"{r.get('title','')} {r.get('body','')}" for r in reviews if r.get("body")]
@@ -322,14 +328,17 @@ def fetch_amazon_reviews(brand: str) -> list:
         print(f"  [OpenWeb Ninja] Amazon error: {e}")
         return []
 
-def fetch_news_mentions(brand: str) -> list:
+def fetch_news_mentions(brand: str, geo: str = "IN") -> list:
     if not OPENWEBNINJA_KEY:
         return []
-    print(f"  [OpenWeb Ninja] News: {brand}")
+    # Map geo to country code for news
+    country_map = {"IN": "IN", "US": "US", "GB": "GB", "AU": "AU", "SG": "SG", "GLOBAL": "US"}
+    country = country_map.get(geo, "IN")
+    print(f"  [OpenWeb Ninja] News: {brand} (country={country})")
     try:
         headers = {"x-api-key": OPENWEBNINJA_KEY}
         data = safe_get("https://api.openwebninja.com/realtime-news-data/search",
-                        params={"query": brand, "country": "IN", "language": "en", "page": 1}, headers=headers)
+                        params={"query": brand, "country": country, "language": "en", "page": 1}, headers=headers)
         if not data: return []
         articles = data.get("data", [])
         texts = [f"{a.get('title','')} {a.get('snippet','')}" for a in articles if a.get("title")]
@@ -341,15 +350,18 @@ def fetch_news_mentions(brand: str) -> list:
 
 # ─── Google Play Store ─────────────────────────────────────────────────────────
 
-def fetch_google_play_reviews(brand: str) -> list:
+def fetch_google_play_reviews(brand: str, geo: str = "IN") -> list:
     print(f"  [Google Play] Fetching: {brand}")
+    # Map geo to country code for Play Store
+    country_map = {"IN": "in", "US": "us", "GB": "gb", "AU": "au", "SG": "sg", "GLOBAL": "us"}
+    country = country_map.get(geo, "in")
     try:
         from google_play_scraper import search, reviews as gplay_reviews, Sort
-        results = search(brand, lang="en", country="in", n_hits=3)
+        results = search(brand, lang="en", country=country, n_hits=3)
         if not results: return []
         app_id = results[0].get("appId", "")
         if not app_id: return []
-        result, _ = gplay_reviews(app_id, lang="en", country="in", sort=Sort.NEWEST, count=30)
+        result, _ = gplay_reviews(app_id, lang="en", country=country, sort=Sort.NEWEST, count=30)
         texts = [r.get("content", "") for r in result if r.get("content")]
         print(f"  [Google Play] {brand}: {len(texts)} reviews (app: {app_id})")
         return texts
@@ -362,15 +374,17 @@ def fetch_google_play_reviews(brand: str) -> list:
 
 # ─── Apple App Store ───────────────────────────────────────────────────────────
 
-def fetch_app_store_reviews(brand: str) -> list:
+def fetch_app_store_reviews(brand: str, geo: str = "IN") -> list:
     print(f"  [App Store] Fetching: {brand}")
+    country_map = {"IN": "in", "US": "us", "GB": "gb", "AU": "au", "SG": "sg", "GLOBAL": "us"}
+    country = country_map.get(geo, "in")
     try:
         data = safe_get("https://itunes.apple.com/search",
-                        params={"term": brand, "country": "in", "media": "software", "limit": 5})
+                        params={"term": brand, "country": country, "media": "software", "limit": 5})
         if not data or not data.get("results"): return []
         app_id = data["results"][0].get("trackId", "")
         if not app_id: return []
-        reviews_data = safe_get(f"https://itunes.apple.com/in/rss/customerreviews/id={app_id}/sortBy=mostRecent/json")
+        reviews_data = safe_get(f"https://itunes.apple.com/{country}/rss/customerreviews/id={app_id}/sortBy=mostRecent/json")
         if not reviews_data: return []
         entries = reviews_data.get("feed", {}).get("entry", [])
         texts = []
@@ -388,11 +402,14 @@ def fetch_app_store_reviews(brand: str) -> list:
 
 # ─── Google News RSS ───────────────────────────────────────────────────────────
 
-def fetch_google_alerts_rss(brand: str) -> list:
+def fetch_google_alerts_rss(brand: str, geo: str = "IN") -> list:
     print(f"  [Google News RSS] Fetching: {brand}")
+    country_map = {"IN": "IN:en", "US": "US:en", "GB": "GB:en", "AU": "AU:en", "SG": "SG:en", "GLOBAL": "US:en"}
+    ceid = country_map.get(geo, "IN:en")
+    gl = geo if geo != "GLOBAL" else "US"
     try:
         query = brand.replace(" ", "+")
-        rss_url = f"https://news.google.com/rss/search?q={query}&hl=en-IN&gl=IN&ceid=IN:en"
+        rss_url = f"https://news.google.com/rss/search?q={query}&hl=en&gl={gl}&ceid={ceid}"
         feed = feedparser.parse(rss_url)
         texts = []
         for entry in feed.entries[:20]:
@@ -638,7 +655,7 @@ def run_scraper_for_brand(brand_id: str, brand_name: str, competitors: list,
                           geo: str = "IN"):
     print(f"\n{'='*60}")
     print(f"Scraping: {brand_name} | {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M UTC')}")
-    print(f"Products: {'IQ ✅' if scrape_iq else 'IQ ❌'} | {'Eye ✅' if scrape_eye else 'Eye ❌'}")
+    print(f"Products: {'IQ ✅' if scrape_iq else 'IQ ❌'} | {'Eye ✅' if scrape_eye else 'Eye ❌'} | Region: {geo}")
     print(f"{'='*60}")
 
     competitor_names = [c["name"] for c in competitors]
@@ -662,19 +679,19 @@ def run_scraper_for_brand(brand_id: str, brand_name: str, competitors: list,
     print(f"\n  [OpenWeb Ninja] Fetching reviews and news...")
     trustpilot_texts = fetch_trustpilot_reviews(brand_name)
     time.sleep(2)
-    amazon_texts = fetch_amazon_reviews(brand_name)
+    amazon_texts = fetch_amazon_reviews(brand_name, geo)
     time.sleep(2)
-    news_texts = fetch_news_mentions(brand_name)
+    news_texts = fetch_news_mentions(brand_name, geo)
     time.sleep(2)
 
     # ── Step 4: App stores ──
-    play_texts = fetch_google_play_reviews(brand_name)
+    play_texts = fetch_google_play_reviews(brand_name, geo)
     time.sleep(2)
-    appstore_texts = fetch_app_store_reviews(brand_name)
+    appstore_texts = fetch_app_store_reviews(brand_name, geo)
     time.sleep(2)
 
     # ── Step 5: Google News RSS ──
-    alerts_texts = fetch_google_alerts_rss(brand_name)
+    alerts_texts = fetch_google_alerts_rss(brand_name, geo)
     time.sleep(2)
 
     # ── Step 6: IQ KPIs (only if paid) ──
@@ -703,7 +720,7 @@ def run_scraper_for_brand(brand_id: str, brand_name: str, competitors: list,
                 movement=movement, sources_count=data["sources_count"],
             )
 
-        # ── Competitors — Awareness + Buzz only ──
+        # ── Competitors ──
         print(f"\n  Scraping {len(competitors)} competitors...")
         for comp in competitors:
             print(f"\n  → {comp['name']}")
@@ -764,8 +781,8 @@ def main():
     print(f"OpenWeb Ninja: {'✅ configured' if OPENWEBNINJA_KEY else '❌ missing'}")
     print(f"YouTube API:   {'✅ configured' if YOUTUBE_API_KEY else '⚠️  not set'}")
 
-    # Fetch all brands with user_id
-    brands_result = supabase.table("brands").select("id, brand_name, category, user_id").execute()
+    # Fetch all brands with user_id and geo
+    brands_result = supabase.table("brands").select("id, brand_name, category, user_id, geo").execute()
     if not brands_result.data:
         print("No brands found. Exiting.")
         return
@@ -774,6 +791,7 @@ def main():
         brand_id   = brand["id"]
         brand_name = brand["brand_name"]
         user_id    = brand.get("user_id", "")
+        geo        = brand.get("geo", "IN")
 
         # ── Product check — only scrape what client has paid for ──
         orders = supabase.table("orders")\
@@ -786,7 +804,7 @@ def main():
         has_iq  = "iq"  in paid_products
         has_eye = "eye" in paid_products
 
-        print(f"\n  [{brand_name}] Products paid: IQ={'✅' if has_iq else '❌'} | Eye={'✅' if has_eye else '❌'}")
+        print(f"\n  [{brand_name}] Products: IQ={'✅' if has_iq else '❌'} | Eye={'✅' if has_eye else '❌'} | Region: {geo}")
 
         if not has_iq and not has_eye:
             print(f"  ⚠️  {brand_name} has no paid products — skipping.")
@@ -802,6 +820,7 @@ def main():
             user_id=user_id,
             scrape_iq=has_iq,
             scrape_eye=has_eye,
+            geo=geo,
         )
         time.sleep(5)
 
