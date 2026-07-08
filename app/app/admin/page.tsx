@@ -19,7 +19,7 @@ const ADMIN_PASSWORD = 'ks-admin-2026'
 const KPI_NAMES = ['awareness', 'consideration', 'usage', 'imagery', 'buzz']
 const CX_THEMES = ['Product', 'Experience', 'Customer Service', 'Pricing', 'Collections']
 
-type Section = 'payments' | 'clients' | 'approval' | 'scraper'
+type Section = 'payments' | 'clients' | 'approval' | 'upload' | 'scraper'
 type Decision = 'approve' | 'reject' | null
 
 export default function AdminPage() {
@@ -40,6 +40,13 @@ export default function AdminPage() {
   const [kpiInstructions, setKpiInstructions] = useState<Record<string, string>>({})
   const [themeDecisions, setThemeDecisions] = useState<Record<string, Decision>>({})
   const [themeInstructions, setThemeInstructions] = useState<Record<string, string>>({})
+
+  // CSV upload state
+  const [csvText, setCsvText] = useState('')
+  const [csvBrandId, setCsvBrandId] = useState('')
+  const [csvCheckpoint, setCsvCheckpoint] = useState('current')
+  const [csvPreview, setCsvPreview] = useState<any[]>([])
+  const [csvUploading, setCsvUploading] = useState(false)
 
   const anon = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ''
   const headers = {
@@ -205,6 +212,74 @@ export default function AdminPage() {
     setLoading(false)
   }
 
+  // CSV parser
+  const parseCSV = (text: string) => {
+    const lines = text.trim().split('\n').filter(l => l.trim())
+    if (lines.length < 2) return []
+    const headerLine = lines[0].toLowerCase().replace(/\s/g, '')
+    const headers_csv = headerLine.split(',')
+    const rows = []
+    for (let i = 1; i < lines.length; i++) {
+      const values = lines[i].split(',').map(v => v.trim().replace(/^"|"$/g, ''))
+      const row: any = {}
+      headers_csv.forEach((h, idx) => { row[h] = values[idx] || '' })
+      if (row.kpi_name && row.score) rows.push(row)
+    }
+    return rows
+  }
+
+  const handleCSVPreview = () => {
+    if (!csvText.trim()) { setMsg('❌ Please paste CSV data first.'); return }
+    if (!csvBrandId) { setMsg('❌ Please select a brand first.'); return }
+    const rows = parseCSV(csvText)
+    if (!rows.length) { setMsg('❌ Could not parse CSV. Check format.'); return }
+    setCsvPreview(rows)
+    setMsg('')
+  }
+
+  const handleCSVUpload = async () => {
+    if (!csvPreview.length) { setMsg('❌ Preview data first.'); return }
+    if (!csvBrandId) { setMsg('❌ Please select a brand.'); return }
+    setCsvUploading(true)
+    setMsg('')
+    let count = 0
+    for (const row of csvPreview) {
+      const kpi_name = row.kpi_name?.toLowerCase().trim()
+      const score = parseFloat(row.score)
+      if (!kpi_name || isNaN(score)) continue
+      const zone = row.zone?.toLowerCase().trim() || (
+        score <= 20 ? 'critical' : score <= 40 ? 'emerging' : score <= 60 ? 'contested' : score <= 80 ? 'established' : 'category_defining'
+      )
+      const snapshotRow = {
+        brand_id: csvBrandId,
+        competitor_id: null,
+        kpi_name,
+        score,
+        zone,
+        confidence_level: 'external',
+        source: row.source?.trim() || 'Manual CSV upload',
+        snapshot_type: 'brand_level',
+        checkpoint: csvCheckpoint,
+        trigger_method: 'manual',
+        movement: null,
+        sources_count: 1,
+        last_updated: new Date().toISOString(),
+        status: 'pending_review',
+      }
+      await fetch(`${SUPABASE_URL}/rest/v1/kpi_snapshots`, {
+        method: 'POST',
+        headers: { ...headers, 'Prefer': 'return=minimal' },
+        body: JSON.stringify(snapshotRow)
+      })
+      count++
+    }
+    setMsg(`✅ ${count} KPI rows uploaded as pending_review. Go to Data approval to review.`)
+    setCsvText('')
+    setCsvPreview([])
+    setCsvUploading(false)
+    fetchPendingKpis()
+  }
+
   if (!authed) return (
     <div style={{minHeight:'100vh',background:DEEP,display:'flex',alignItems:'center',justifyContent:'center'}}>
       <style>{`*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}body{font-family:'Inter',sans-serif}`}</style>
@@ -229,12 +304,19 @@ export default function AdminPage() {
     <div style={{minHeight:'100vh',background:'#f9f9f9',display:'flex'}}>
       <style>{`*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}body{font-family:'Inter',sans-serif}`}</style>
 
+      {/* SIDEBAR */}
       <div style={{width:220,background:DEEP,display:'flex',flexDirection:'column',position:'fixed',top:0,left:0,bottom:0,zIndex:50}}>
         <div style={{padding:'20px 16px',borderBottom:'1px solid rgba(255,255,255,0.07)'}}>
           <div style={{fontSize:10,color:GOLD,fontWeight:600,letterSpacing:'0.1em',textTransform:'uppercase'}}>King Solomon</div>
           <div style={{fontSize:12,color:CREAM_DIM,marginTop:2}}>Admin panel</div>
         </div>
-        {([['payments','💳 Payments'],['clients','🏢 Clients'],['approval','✅ Data approval'],['scraper','🔍 Scraper']] as const).map(([key, label]) => (
+        {([
+          ['payments','💳 Payments'],
+          ['clients','🏢 Clients'],
+          ['approval','✅ Data approval'],
+          ['upload','📤 Data upload'],
+          ['scraper','🔍 Scraper'],
+        ] as const).map(([key, label]) => (
           <div key={key} onClick={() => { setSection(key); setSelectedClient(null); setMsg('') }}
             style={{padding:'10px 16px',fontSize:13,color:section===key?CREAM:CREAM_DIM,borderLeft:section===key?`2px solid ${GOLD}`:'2px solid transparent',background:section===key?'rgba(201,168,76,0.08)':'transparent',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'space-between'}}>
             <span>{label}</span>
@@ -248,6 +330,7 @@ export default function AdminPage() {
         </div>
       </div>
 
+      {/* MAIN */}
       <div style={{flex:1,marginLeft:220,padding:32}}>
         {msg && (
           <div style={{padding:'10px 16px',borderRadius:8,background:msg.startsWith('✅')?'rgba(95,198,138,0.1)':'rgba(232,120,120,0.1)',border:`1px solid ${msg.startsWith('✅')?'rgba(95,198,138,0.3)':'rgba(232,120,120,0.3)'}`,fontSize:13,color:msg.startsWith('✅')?'#1a6b1a':'#7a1a1a',marginBottom:20}}>
@@ -505,6 +588,97 @@ export default function AdminPage() {
                 </div>
               )}
             </div>
+          </div>
+        )}
+
+        {/* DATA UPLOAD */}
+        {section === 'upload' && (
+          <div style={{maxWidth:800}}>
+            <h1 style={{fontFamily:'Georgia,serif',fontSize:25,fontWeight:700,color:DARK,marginBottom:6}}>Data upload</h1>
+            <p style={{fontSize:14,color:BODY_TEXT,marginBottom:24}}>Upload KPI data from any external tool (Awario, Brand24, etc.) as a CSV. Data goes into your approval workflow before reaching the client dashboard.</p>
+
+            {/* Format guide */}
+            <div style={{background:'#f9f9f9',border:`1px solid ${BORDER}`,borderRadius:10,padding:'14px 18px',marginBottom:20}}>
+              <div style={{fontSize:11,fontWeight:600,color:GOLD,textTransform:'uppercase',letterSpacing:'0.1em',marginBottom:8}}>Required CSV format</div>
+              <code style={{fontSize:12,color:DARK,display:'block',lineHeight:1.8}}>
+                kpi_name, score, zone, source<br/>
+                awareness, 68, established, Awario export<br/>
+                consideration, 45, contested, Awario export<br/>
+                usage, 52, contested, Brand24<br/>
+                imagery, 61, established, Manual<br/>
+                buzz, +12, contested, Awario export
+              </code>
+              <div style={{fontSize:11,color:'#aaa',marginTop:8}}>kpi_name must be: awareness, consideration, usage, imagery, or buzz. zone and source are optional.</div>
+            </div>
+
+            {/* Brand + checkpoint selector */}
+            <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:12,marginBottom:16}}>
+              <div>
+                <div style={{fontSize:11,fontWeight:600,color:GOLD,textTransform:'uppercase',letterSpacing:'0.1em',marginBottom:6}}>Brand</div>
+                <select value={csvBrandId} onChange={e => setCsvBrandId(e.target.value)} style={{width:'100%',padding:'9px 12px',border:`1px solid ${BORDER}`,borderRadius:8,fontSize:14,color:DARK,background:WHITE,fontFamily:'Inter,sans-serif'}}>
+                  <option value="">Select brand</option>
+                  {brands.map(b => <option key={b.id} value={b.id}>{b.brand_name}</option>)}
+                </select>
+              </div>
+              <div>
+                <div style={{fontSize:11,fontWeight:600,color:GOLD,textTransform:'uppercase',letterSpacing:'0.1em',marginBottom:6}}>Time window</div>
+                <select value={csvCheckpoint} onChange={e => setCsvCheckpoint(e.target.value)} style={{width:'100%',padding:'9px 12px',border:`1px solid ${BORDER}`,borderRadius:8,fontSize:14,color:DARK,background:WHITE,fontFamily:'Inter,sans-serif'}}>
+                  <option value="current">Current</option>
+                  <option value="30d">30d</option>
+                  <option value="60d">60d</option>
+                  <option value="90d">90d</option>
+                </select>
+              </div>
+            </div>
+
+            {/* CSV paste area */}
+            <div style={{marginBottom:12}}>
+              <div style={{fontSize:11,fontWeight:600,color:GOLD,textTransform:'uppercase',letterSpacing:'0.1em',marginBottom:6}}>Paste CSV data</div>
+              <textarea
+                value={csvText}
+                onChange={e => { setCsvText(e.target.value); setCsvPreview([]) }}
+                placeholder={'kpi_name, score, zone, source\nawareness, 68, established, Awario\nconsideration, 45, contested, Awario'}
+                rows={8}
+                style={{width:'100%',padding:'12px 14px',border:`1px solid ${BORDER}`,borderRadius:8,fontSize:13,color:DARK,fontFamily:'monospace',resize:'vertical'}}
+              />
+            </div>
+
+            <div style={{display:'flex',gap:8,marginBottom:20}}>
+              <button onClick={handleCSVPreview} style={{padding:'9px 18px',background:MID_GREEN,color:WHITE,border:'none',borderRadius:8,fontSize:13,fontWeight:600,cursor:'pointer',fontFamily:'Inter,sans-serif'}}>
+                Preview →
+              </button>
+              {csvPreview.length > 0 && (
+                <button onClick={handleCSVUpload} disabled={csvUploading} style={{padding:'9px 18px',background:GOLD,color:DEEP,border:'none',borderRadius:8,fontSize:13,fontWeight:600,cursor:'pointer',fontFamily:'Inter,sans-serif'}}>
+                  {csvUploading ? 'Uploading...' : `Upload ${csvPreview.length} rows →`}
+                </button>
+              )}
+            </div>
+
+            {/* Preview table */}
+            {csvPreview.length > 0 && (
+              <div style={{background:WHITE,border:`1px solid ${BORDER}`,borderRadius:12,overflow:'hidden'}}>
+                <div style={{padding:'10px 16px',borderBottom:`1px solid ${BORDER}`,fontSize:11,fontWeight:600,color:GOLD,textTransform:'uppercase',letterSpacing:'0.1em'}}>
+                  Preview — {csvPreview.length} rows — will upload as pending_review for {brands.find(b => b.id === csvBrandId)?.brand_name}
+                </div>
+                <table style={{width:'100%',borderCollapse:'collapse',fontSize:13}}>
+                  <thead><tr style={{background:'#fafafa'}}>
+                    {['KPI','Score','Zone','Source'].map(h => (
+                      <th key={h} style={{textAlign:'left',padding:'8px 16px',fontWeight:600,color:'#aaa',fontSize:11,textTransform:'uppercase',letterSpacing:'0.08em',borderBottom:`1px solid ${BORDER}`}}>{h}</th>
+                    ))}
+                  </tr></thead>
+                  <tbody>
+                    {csvPreview.map((row, i) => (
+                      <tr key={i} style={{borderBottom:`1px solid ${BORDER}`}}>
+                        <td style={{padding:'8px 16px',color:DARK,fontWeight:600,textTransform:'uppercase',fontSize:11}}>{row.kpi_name}</td>
+                        <td style={{padding:'8px 16px',color:DARK,fontFamily:'Georgia,serif',fontSize:16}}>{row.score}</td>
+                        <td style={{padding:'8px 16px',color:BODY_TEXT,textTransform:'capitalize'}}>{row.zone || 'auto'}</td>
+                        <td style={{padding:'8px 16px',color:'#aaa',fontSize:12}}>{row.source || 'Manual upload'}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
           </div>
         )}
 
