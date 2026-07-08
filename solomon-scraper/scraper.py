@@ -328,7 +328,7 @@ def fetch_news_mentions(brand: str) -> list:
     print(f"  [OpenWeb Ninja] News: {brand}")
     try:
         headers = {"x-api-key": OPENWEBNINJA_KEY}
-        data = safe_get("https://api.openwebninja.com/realtime-news-search/search",
+        data = safe_get("https://api.openwebninja.com/realtime-news-data/search",
                         params={"query": brand, "country": "IN", "language": "en", "page": 1}, headers=headers)
         if not data: return []
         articles = data.get("data", [])
