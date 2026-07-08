@@ -21,10 +21,20 @@ const CATEGORIES = [
   'Other',
 ]
 
+const REGIONS = [
+  { value: 'IN', label: 'India' },
+  { value: 'SG', label: 'Southeast Asia' },
+  { value: 'US', label: 'United States' },
+  { value: 'GB', label: 'United Kingdom' },
+  { value: 'AU', label: 'Australia' },
+  { value: 'GLOBAL', label: 'Global' },
+]
+
 export default function BrandSetup() {
   const router = useRouter()
   const [brandName, setBrandName] = useState('')
   const [category, setCategory] = useState('')
+  const [geo, setGeo] = useState('IN')
   const [competitors, setCompetitors] = useState(['', '', ''])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
@@ -56,6 +66,7 @@ export default function BrandSetup() {
       user_id: user.id,
       brand_name: brandName.trim(),
       category,
+      geo,
       competitor_1: competitors[0].trim() || null,
       competitor_2: competitors[1].trim() || null,
       competitor_3: competitors[2].trim() || null,
@@ -107,6 +118,19 @@ export default function BrandSetup() {
           >
             <option value="" disabled>Select your category</option>
             {CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
+          </select>
+        </div>
+
+        {/* Region */}
+        <div style={{marginBottom:24}}>
+          <label style={{display:'block',fontSize:12,fontWeight:600,color:'#C9A84C',letterSpacing:'0.08em',textTransform:'uppercase',marginBottom:8}}>Primary market</label>
+          <p style={{fontSize:12,color:'#C8C2B6',marginBottom:8}}>King Solomon will pull signals from this region by default.</p>
+          <select
+            value={geo}
+            onChange={e => setGeo(e.target.value)}
+            style={{width:'100%',background:'#1B4D35',border:'1px solid rgba(255,255,255,0.12)',borderRadius:8,padding:'12px 16px',color:'#F5F0E8',fontSize:15,outline:'none'}}
+          >
+            {REGIONS.map(r => <option key={r.value} value={r.value}>{r.label}</option>)}
           </select>
         </div>
 
