@@ -685,22 +685,83 @@ export default function AdminPage() {
         {/* SCRAPER */}
         {section === 'scraper' && (
           <div>
-            <h1 style={{fontFamily:'Georgia,serif',fontSize:25,fontWeight:700,color:DARK,marginBottom:6}}>Scraper instructions</h1>
-            <p style={{fontSize:14,color:BODY_TEXT,marginBottom:20}}>Add per-brand instructions for the scraper. These are reviewed by you before execution.</p>
+            <h1 style={{fontFamily:'Georgia,serif',fontSize:25,fontWeight:700,color:DARK,marginBottom:6}}>Scraper</h1>
+            <p style={{fontSize:14,color:BODY_TEXT,marginBottom:24}}>Trigger a fresh data collection run for all brands with paid products. Make sure the local server is running first.</p>
+
+            {/* Run scraper button */}
+            <div style={{background:WHITE,border:`1px solid ${BORDER}`,borderRadius:12,padding:'24px',marginBottom:24}}>
+              <div style={{fontSize:11,fontWeight:600,color:GOLD,textTransform:'uppercase',letterSpacing:'0.1em',marginBottom:8}}>Run scraper</div>
+              <p style={{fontSize:13,color:BODY_TEXT,marginBottom:16,lineHeight:1.6}}>
+                Before clicking — open VS Code terminal and run:<br/>
+                <code style={{background:'#f5f5f5',padding:'2px 8px',borderRadius:4,fontSize:12,color:DARK}}>cd solomon-scraper && py server.py</code><br/>
+                Keep that terminal open. Then click the button below.
+              </p>
+              <div style={{display:'flex',gap:12,alignItems:'center',flexWrap:'wrap'}}>
+                <button
+                  onClick={async () => {
+                    setMsg('')
+                    try {
+                      const statusRes = await fetch('/api/run-scraper')
+                      const statusData = await statusRes.json()
+                      if (statusData.status === 'offline') {
+                        setMsg('❌ Local server is not running. Open VS Code terminal and run: py server.py')
+                        return
+                      }
+                      if (statusData.status === 'running') {
+                        setMsg('⏳ Scraper is already running. Check back in a few minutes.')
+                        return
+                      }
+                      const res = await fetch('/api/run-scraper', { method: 'POST' })
+                      const data = await res.json()
+                      if (data.status === 'started') {
+                        setMsg('✅ Scraper started. Data will appear in Data approval in 5-10 minutes. Do not close VS Code terminal.')
+                      } else if (data.status === 'already_running') {
+                        setMsg('⏳ Scraper is already running. Check back in a few minutes.')
+                      } else {
+                        setMsg(`❌ ${data.message}`)
+                      }
+                    } catch {
+                      setMsg('❌ Could not reach local scraper server. Make sure py server.py is running in VS Code terminal.')
+                    }
+                  }}
+                  style={{padding:'12px 24px',background:DEEP,color:CREAM,border:'none',borderRadius:8,fontSize:14,fontWeight:600,cursor:'pointer',fontFamily:'Inter,sans-serif'}}
+                >▶ Run scraper now</button>
+                <button
+                  onClick={async () => {
+                    try {
+                      const res = await fetch('/api/run-scraper')
+                      const data = await res.json()
+                      if (data.status === 'running') {
+                        setMsg(`⏳ Scraper is running. Recent log: ${data.log?.slice(-3).join(' | ')}`)
+                      } else if (data.status === 'idle') {
+                        setMsg('✅ Scraper server is online and idle. Ready to run.')
+                      } else {
+                        setMsg('❌ Local server is not running. Run: py server.py')
+                      }
+                    } catch {
+                      setMsg('❌ Local server is not running. Run: py server.py')
+                    }
+                  }}
+                  style={{padding:'12px 20px',background:'#f5f5f5',color:DARK,border:`1px solid ${BORDER}`,borderRadius:8,fontSize:13,fontWeight:600,cursor:'pointer',fontFamily:'Inter,sans-serif'}}
+                >Check status</button>
+              </div>
+            </div>
+
+            <div style={{fontSize:11,fontWeight:600,color:GOLD,textTransform:'uppercase',letterSpacing:'0.1em',marginBottom:12}}>Per-brand instructions</div>
+            <p style={{fontSize:13,color:BODY_TEXT,marginBottom:16}}>Add custom instructions per brand. These are picked up on the next scraper run.</p>
             <div style={{display:'flex',flexDirection:'column',gap:12}}>
               {brands.map(b => (
                 <div key={b.id} style={{background:WHITE,border:`1px solid ${BORDER}`,borderRadius:12,padding:'16px 20px'}}>
                   <div style={{fontSize:14,fontWeight:600,color:DARK,marginBottom:4}}>{b.brand_name}</div>
-                  <div style={{fontSize:12,color:'#aaa',marginBottom:10}}>{b.category}</div>
+                  <div style={{fontSize:12,color:'#aaa',marginBottom:10}}>{b.category} · {b.geo || 'IN'}</div>
                   <textarea placeholder="Add scraper instructions for this brand..." value={scraperInstructions[b.id]||''} onChange={e => setScraperInstructions(prev => ({...prev,[b.id]:e.target.value}))} rows={3} style={{width:'100%',padding:'10px 12px',border:`1px solid ${BORDER}`,borderRadius:8,fontSize:13,color:DARK,fontFamily:'Inter,sans-serif',resize:'vertical',marginBottom:8}}/>
                   <div style={{display:'flex',gap:8}}>
                     <button onClick={async () => {
                       const instruction = scraperInstructions[b.id]||''
                       if(!instruction){setMsg('❌ Please add an instruction first.');return}
                       await fetch(`${SUPABASE_URL}/rest/v1/brands?id=eq.${b.id}`,{method:'PATCH',headers:{...headers,'Prefer':'return=minimal'},body:JSON.stringify({scraper_instruction:instruction})})
-                      setMsg('✅ Instruction saved. Awaiting your confirmation before scraper runs.')
+                      setMsg('✅ Instruction saved. Will be used on next scraper run.')
                     }} style={{padding:'7px 14px',background:GOLD,color:DEEP,border:'none',borderRadius:7,fontSize:12,fontWeight:600,cursor:'pointer',fontFamily:'Inter,sans-serif'}}>Save instruction</button>
-                    <span style={{fontSize:11,color:'#aaa',alignSelf:'center'}}>Scraper will not run until you confirm execution separately.</span>
                   </div>
                 </div>
               ))}
