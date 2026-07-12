@@ -701,7 +701,7 @@ export default function AdminPage() {
                   onClick={async () => {
                     setMsg('')
                     try {
-                      const statusRes = await fetch('http://localhost:5001/status')
+                      const statusRes = await fetch('https://kingsolomonhq-production.up.railway.app/status')
                       const statusData = await statusRes.json()
                       if (statusData.status === 'offline') {
                         setMsg('❌ Local server is not running. Open VS Code terminal and run: py server.py')
@@ -711,7 +711,7 @@ export default function AdminPage() {
                         setMsg('⏳ Scraper is already running. Check back in a few minutes.')
                         return
                       }
-                      const res = await fetch('http://localhost:5001/trigger', { method: 'POST' })
+                      const res = await fetch('https://kingsolomonhq-production.up.railway.app/trigger', { method: 'POST' })
                       const data = await res.json()
                       if (data.status === 'started') {
                         setMsg('✅ Scraper started. Data will appear in Data approval in 5-10 minutes. Do not close VS Code terminal.')
@@ -729,7 +729,7 @@ export default function AdminPage() {
                 <button
                   onClick={async () => {
                     try {
-                      const res = await fetch('http://localhost:5001/status')
+                      const res = await fetch('https://kingsolomonhq-production.up.railway.app/status')
                       const data = await res.json()
                       if (data.status === 'running') {
                         setMsg(`⏳ Scraper is running. Recent log: ${data.log?.slice(-3).join(' | ')}`)
