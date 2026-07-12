@@ -692,9 +692,7 @@ export default function AdminPage() {
             <div style={{background:WHITE,border:`1px solid ${BORDER}`,borderRadius:12,padding:'24px',marginBottom:24}}>
               <div style={{fontSize:11,fontWeight:600,color:GOLD,textTransform:'uppercase',letterSpacing:'0.1em',marginBottom:8}}>Run scraper</div>
               <p style={{fontSize:13,color:BODY_TEXT,marginBottom:16,lineHeight:1.6}}>
-                Before clicking — open VS Code terminal and run:<br/>
-                <code style={{background:'#f5f5f5',padding:'2px 8px',borderRadius:4,fontSize:12,color:DARK}}>cd solomon-scraper && py server.py</code><br/>
-                Keep that terminal open. Then click the button below.
+                Click the button below to trigger a fresh data collection run for all brands with paid products. The scraper runs on the cloud — no VS Code needed.
               </p>
               <div style={{display:'flex',gap:12,alignItems:'center',flexWrap:'wrap'}}>
                 <button
@@ -714,7 +712,7 @@ export default function AdminPage() {
                       const res = await fetch('https://kingsolomonhq-production.up.railway.app/trigger', { method: 'POST' })
                       const data = await res.json()
                       if (data.status === 'started') {
-                        setMsg('✅ Scraper started. Data will appear in Data approval in 5-10 minutes. Do not close VS Code terminal.')
+                        setMsg('✅ Scraper started. Data will appear in Data approval in 5-10 minutes.')
                       } else if (data.status === 'already_running') {
                         setMsg('⏳ Scraper is already running. Check back in a few minutes.')
                       } else {
