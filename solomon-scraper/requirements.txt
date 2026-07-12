@@ -1,0 +1,8 @@
+flask
+flask-cors
+requests
+feedparser
+python-dotenv
+supabase
+pytrends
+google-play-scraper
