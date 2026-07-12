@@ -25,6 +25,11 @@ Region:
   Reads geo from brands table — set by client on brand setup page
   Passes geo to Google Trends and API Direct calls
 
+Keywords:
+  Extracts top 10 positive and negative keywords per Eye theme
+  Extracts top 10 positive and negative keywords for Buzz KPI
+  Stores in Supabase for word clouds and signal distribution
+
 Run: py scraper.py
 """
 
@@ -33,6 +38,7 @@ import time
 import re
 import requests
 import feedparser
+from collections import Counter
 from datetime import datetime, timezone
 from dotenv import load_dotenv
 from supabase import create_client, Client
@@ -89,6 +95,25 @@ def classify_confidence(n_signals: int, variance: float) -> str:
     if n_signals < 10:       return "external"
     if variance > 0.5:       return "split"
     return "high"
+
+# ─── Keyword extraction ────────────────────────────────────────────────────────
+
+STOP_WORDS = {
+    "the","a","an","is","it","was","to","and","in","of","for","with","this","that",
+    "not","but","are","be","have","has","i","my","we","our","they","their","its",
+    "on","at","by","as","so","do","did","get","got","no","he","she","you","your",
+    "me","him","her","us","app","just","very","also","more","like","good","great",
+    "bad","product","from","they","been","will","would","could","about","what",
+    "when","which","there","then","than","only","some","them","into","after","over"
+}
+
+def extract_keywords(texts: list, top_n: int = 10) -> str:
+    if not texts:
+        return ""
+    all_words = re.findall(r'\b\w+\b', " ".join(texts).lower())
+    filtered = [w for w in all_words if len(w) > 3 and w not in STOP_WORDS]
+    most_common = Counter(filtered).most_common(top_n)
+    return ", ".join([w for w, _ in most_common])
 
 # ─── Sentiment lexicon ─────────────────────────────────────────────────────────
 
@@ -304,7 +329,6 @@ def fetch_trustpilot_reviews(brand: str) -> list:
 def fetch_amazon_reviews(brand: str, geo: str = "IN") -> list:
     if not OPENWEBNINJA_KEY:
         return []
-    # Map geo code to Amazon country code
     country_map = {"IN": "IN", "US": "US", "GB": "GB", "AU": "AU", "SG": "SG", "GLOBAL": "US"}
     country = country_map.get(geo, "IN")
     print(f"  [OpenWeb Ninja] Amazon: {brand} (country={country})")
@@ -331,7 +355,6 @@ def fetch_amazon_reviews(brand: str, geo: str = "IN") -> list:
 def fetch_news_mentions(brand: str, geo: str = "IN") -> list:
     if not OPENWEBNINJA_KEY:
         return []
-    # Map geo to country code for news
     country_map = {"IN": "IN", "US": "US", "GB": "GB", "AU": "AU", "SG": "SG", "GLOBAL": "US"}
     country = country_map.get(geo, "IN")
     print(f"  [OpenWeb Ninja] News: {brand} (country={country})")
@@ -352,7 +375,6 @@ def fetch_news_mentions(brand: str, geo: str = "IN") -> list:
 
 def fetch_google_play_reviews(brand: str, geo: str = "IN") -> list:
     print(f"  [Google Play] Fetching: {brand}")
-    # Map geo to country code for Play Store
     country_map = {"IN": "in", "US": "us", "GB": "gb", "AU": "au", "SG": "sg", "GLOBAL": "us"}
     country = country_map.get(geo, "in")
     try:
@@ -482,7 +504,10 @@ def compute_iq_kpis(brand, trends_awareness, trends_consideration, social_signal
         imagery_score = round(clamp((pos_count / total_img) * 80 + 10, 0, 100)) if total_img > 0 else 40
         imagery_confidence = classify_confidence(len(all_texts), 0.3)
 
+    # ── Buzz with keyword extraction ──
     buzz_texts = social_texts + news_and_alerts
+    buzz_positive_keywords = ""
+    buzz_negative_keywords = ""
     if not buzz_texts:
         buzz_score = 0
         buzz_confidence = "unexplained"
@@ -492,6 +517,10 @@ def compute_iq_kpis(brand, trends_awareness, trends_consideration, social_signal
         buzz_score = round(clamp(avg_s * 100, -100, 100))
         variance = sum((s - avg_s) ** 2 for s in sentiments) / len(sentiments)
         buzz_confidence = classify_confidence(len(buzz_texts), variance)
+        pos_buzz_texts = [t for t, s in zip(buzz_texts, sentiments) if s > 0.1]
+        neg_buzz_texts = [t for t, s in zip(buzz_texts, sentiments) if s < -0.1]
+        buzz_positive_keywords = extract_keywords(pos_buzz_texts)
+        buzz_negative_keywords = extract_keywords(neg_buzz_texts)
 
     total_sources = len([s for s in [
         trends_awareness["score"] > 0,
@@ -508,17 +537,16 @@ def compute_iq_kpis(brand, trends_awareness, trends_consideration, social_signal
     ] if s])
 
     return {
-        "awareness":     {"score": awareness_score,     "zone": score_to_zone(awareness_score),              "confidence": trends_awareness["confidence"],     "source": f"Google Trends + Social ({social_mention_count} mentions) + News", "sources_count": total_sources},
-        "consideration": {"score": consideration_score, "zone": score_to_zone(consideration_score),          "confidence": trends_consideration["confidence"], "source": f"Google Trends intent + {len(intent_signals)} social intent signals",  "sources_count": total_sources},
-        "usage":         {"score": usage_score,         "zone": score_to_zone(usage_score),                  "confidence": usage_confidence,                   "source": f"Reviews + Social experience ({len(all_usage)} signals)",            "sources_count": total_sources},
-        "imagery":       {"score": imagery_score,       "zone": score_to_zone(imagery_score),                "confidence": imagery_confidence,                 "source": f"NLP over {len(all_texts)} signals",                                 "sources_count": total_sources},
-        "buzz":          {"score": buzz_score,          "zone": score_to_zone(buzz_score, is_buzz=True),     "confidence": buzz_confidence,                    "source": f"Social + News sentiment ({len(buzz_texts)} signals)",               "sources_count": total_sources},
+        "awareness":     {"score": awareness_score,     "zone": score_to_zone(awareness_score),              "confidence": trends_awareness["confidence"],     "source": f"Google Trends + Social ({social_mention_count} mentions) + News", "sources_count": total_sources, "positive_keywords": "", "negative_keywords": ""},
+        "consideration": {"score": consideration_score, "zone": score_to_zone(consideration_score),          "confidence": trends_consideration["confidence"], "source": f"Google Trends intent + {len(intent_signals)} social intent signals",  "sources_count": total_sources, "positive_keywords": "", "negative_keywords": ""},
+        "usage":         {"score": usage_score,         "zone": score_to_zone(usage_score),                  "confidence": usage_confidence,                   "source": f"Reviews + Social experience ({len(all_usage)} signals)",            "sources_count": total_sources, "positive_keywords": "", "negative_keywords": ""},
+        "imagery":       {"score": imagery_score,       "zone": score_to_zone(imagery_score),                "confidence": imagery_confidence,                 "source": f"NLP over {len(all_texts)} signals",                                 "sources_count": total_sources, "positive_keywords": "", "negative_keywords": ""},
+        "buzz":          {"score": buzz_score,          "zone": score_to_zone(buzz_score, is_buzz=True),     "confidence": buzz_confidence,                    "source": f"Social + News sentiment ({len(buzz_texts)} signals)",               "sources_count": total_sources, "positive_keywords": buzz_positive_keywords, "negative_keywords": buzz_negative_keywords},
     }
 
 # ─── Eye CX Classifier ─────────────────────────────────────────────────────────
 
 def compute_eye_themes(brand, play_texts, appstore_texts, trustpilot_texts, amazon_texts, social_reddit):
-    from collections import Counter
     all_review_texts = play_texts + appstore_texts + trustpilot_texts + amazon_texts + social_reddit
     if not all_review_texts:
         return {}
@@ -538,24 +566,33 @@ def compute_eye_themes(brand, play_texts, appstore_texts, trustpilot_texts, amaz
         detractors = sum(1 for s in sentiments if s < -0.3)
         total = len(sentiments)
         nps = round(((promoters - detractors) / total) * 100) if total > 0 else 0
+
+        pos_texts = [t for t, s in zip(texts, sentiments) if s > 0.1]
         neg_texts = [t for t, s in zip(texts, sentiments) if s < -0.1]
-        top_concern = ""
-        if neg_texts:
-            neg_words = re.findall(r'\b\w+\b', " ".join(neg_texts).lower())
-            stop_words = {"the","a","an","is","it","was","to","and","in","of","for","with","this","that","not","but","are","be","have","has","i","my","we","our","they","their","its","on","at","by","as","so","do","did","get","got","no","he","she","you","your","me","him","her","us"}
-            filtered = [w for w in neg_words if len(w) > 3 and w not in stop_words]
-            most_common = Counter(filtered).most_common(3)
-            top_concern = ", ".join([w for w, _ in most_common])
+
+        positive_keywords = extract_keywords(pos_texts)
+        negative_keywords = extract_keywords(neg_texts)
+
+        # Top concern — top 3 negative keywords
+        top_concern = ", ".join(negative_keywords.split(", ")[:3]) if negative_keywords else ""
+
         overall_sentiment = "positive" if avg_s > 0.1 else "negative" if avg_s < -0.1 else "neutral"
         dropout_rate = round((detractors / total) * 100, 1) if total > 0 else 0
+        pos_count = len(pos_texts)
+        neg_count = len(neg_texts)
+
         theme_results[theme] = {
             "nps_score": nps,
             "signal_count": total,
             "sentiment": overall_sentiment,
             "dropout_rate": dropout_rate,
             "top_concern": top_concern,
+            "positive_keywords": positive_keywords,
+            "negative_keywords": negative_keywords,
+            "positive_signal_count": pos_count,
+            "negative_signal_count": neg_count,
         }
-        print(f"  [Eye] {theme}: NPS={nps}, signals={total}, sentiment={overall_sentiment}")
+        print(f"  [Eye] {theme}: NPS={nps}, signals={total} (+{pos_count}/-{neg_count}), sentiment={overall_sentiment}")
 
     return theme_results
 
@@ -584,7 +621,8 @@ def get_previous_score(brand_id: str, kpi_name: str, competitor_id=None):
     return None
 
 def write_kpi_snapshot(brand_id, competitor_id, kpi_name, score, zone, confidence,
-                       source, snapshot_type, checkpoint, movement, sources_count=0):
+                       source, snapshot_type, checkpoint, movement, sources_count=0,
+                       positive_keywords="", negative_keywords=""):
     row = {
         "brand_id": brand_id,
         "competitor_id": competitor_id,
@@ -600,6 +638,8 @@ def write_kpi_snapshot(brand_id, competitor_id, kpi_name, score, zone, confidenc
         "sources_count": sources_count,
         "last_updated": datetime.now(timezone.utc).isoformat(),
         "status": "pending_review",
+        "positive_keywords": positive_keywords or None,
+        "negative_keywords": negative_keywords or None,
     }
     try:
         supabase.table("kpi_snapshots").insert(row).execute()
@@ -642,6 +682,10 @@ def write_eye_audit(brand_id, user_id, theme_results):
                 "top_concern": data["top_concern"] or None,
                 "sentiment": data["sentiment"],
                 "confidence": "standard",
+                "positive_keywords": data.get("positive_keywords") or None,
+                "negative_keywords": data.get("negative_keywords") or None,
+                "positive_signal_count": data.get("positive_signal_count", 0),
+                "negative_signal_count": data.get("negative_signal_count", 0),
             })
         supabase.table("cx_theme_scores").insert(theme_rows).execute()
         print(f"  [Eye] Audit written → pending_review ✅ (overall NPS: {overall_nps}, {total_signals} signals)")
@@ -670,7 +714,7 @@ def run_scraper_for_brand(brand_id: str, brand_name: str, competitors: list,
         trends_awareness = {"score": 0, "source": "Skipped", "confidence": "unexplained"}
         trends_consideration = {"score": 0, "source": "Skipped", "confidence": "unexplained"}
 
-    # ── Step 2: API Direct — all social platforms ──
+    # ── Step 2: API Direct ──
     print(f"\n  [API Direct] Fetching all platforms...")
     social_signals = fetch_all_social_signals(brand_name)
     time.sleep(2)
@@ -718,6 +762,8 @@ def run_scraper_for_brand(brand_id: str, brand_name: str, competitors: list,
                 score=data["score"], zone=data["zone"], confidence=data["confidence"],
                 source=data["source"], snapshot_type="brand_level", checkpoint="current",
                 movement=movement, sources_count=data["sources_count"],
+                positive_keywords=data.get("positive_keywords", ""),
+                negative_keywords=data.get("negative_keywords", ""),
             )
 
         # ── Competitors ──
@@ -781,7 +827,6 @@ def main():
     print(f"OpenWeb Ninja: {'✅ configured' if OPENWEBNINJA_KEY else '❌ missing'}")
     print(f"YouTube API:   {'✅ configured' if YOUTUBE_API_KEY else '⚠️  not set'}")
 
-    # Fetch all brands with user_id and geo
     brands_result = supabase.table("brands").select("id, brand_name, category, user_id, geo").execute()
     if not brands_result.data:
         print("No brands found. Exiting.")
@@ -793,7 +838,6 @@ def main():
         user_id    = brand.get("user_id", "")
         geo        = brand.get("geo", "IN")
 
-        # ── Product check — only scrape what client has paid for ──
         orders = supabase.table("orders")\
             .select("product")\
             .eq("user_id", user_id)\
