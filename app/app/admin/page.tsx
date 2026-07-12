@@ -41,6 +41,10 @@ export default function AdminPage() {
   const [themeDecisions, setThemeDecisions] = useState<Record<string, Decision>>({})
   const [themeInstructions, setThemeInstructions] = useState<Record<string, string>>({})
 
+  // Verdict state per audit
+  const [auditVerdicts, setAuditVerdicts] = useState<Record<string, any>>({})
+  const [verdictGenerating, setVerdictGenerating] = useState<Record<string, boolean>>({})
+
   // CSV upload state
   const [csvText, setCsvText] = useState('')
   const [csvBrandId, setCsvBrandId] = useState('')
@@ -167,12 +171,39 @@ export default function AdminPage() {
     setLoading(false)
   }
 
+  const generateVerdict = async (audit: any, themes: any[]) => {
+    setVerdictGenerating(prev => ({ ...prev, [audit.id]: true }))
+    try {
+      const res = await fetch('/api/generate-verdict', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          audit,
+          themes,
+          brand_name: getBrandName(audit.brand_id),
+          benchmark: audit.benchmark,
+        })
+      })
+      const data = await res.json()
+      if (data.success) {
+        setAuditVerdicts(prev => ({ ...prev, [audit.id]: data.verdicts }))
+      } else {
+        setMsg('❌ Could not generate verdict. Try again.')
+      }
+    } catch {
+      setMsg('❌ Verdict generation failed.')
+    }
+    setVerdictGenerating(prev => ({ ...prev, [audit.id]: false }))
+  }
+
   const submitAuditDecisions = async (audit: any) => {
     setLoading(true)
     setMsg('')
     const themes = auditThemes[audit.id] || []
+    const verdicts = auditVerdicts[audit.id]
     let approvedCount = 0
     let rejectedCount = 0
+
     for (const theme of themes) {
       const decision = themeDecisions[theme.id]
       if (decision === 'approve') {
@@ -191,6 +222,7 @@ export default function AdminPage() {
         rejectedCount++
       }
     }
+
     if (rejectedCount === 0 && approvedCount > 0) {
       await fetch(`${SUPABASE_URL}/rest/v1/cx_audits?id=eq.${audit.id}`, {
         method: 'PATCH',
@@ -202,6 +234,20 @@ export default function AdminPage() {
         headers: { ...headers, 'Prefer': 'return=minimal' },
         body: JSON.stringify({ eye_report_ready: true })
       })
+      // Save verdict to cx_verdicts table if generated
+      if (verdicts?.overall_verdict) {
+        await fetch(`${SUPABASE_URL}/rest/v1/cx_verdicts`, {
+          method: 'POST',
+          headers: { ...headers, 'Prefer': 'return=minimal' },
+          body: JSON.stringify({
+            audit_id: audit.id,
+            brand_id: audit.brand_id,
+            narrative: verdicts.overall_verdict,
+            mystery_audit_triggered: false,
+            status: 'ready',
+          })
+        })
+      }
       setMsg('✅ All themes approved. Eye dashboard and report unlocked for client.')
     } else {
       setMsg(`✅ ${approvedCount} themes approved, ${rejectedCount} flagged for re-scrape.`)
@@ -212,7 +258,6 @@ export default function AdminPage() {
     setLoading(false)
   }
 
-  // CSV parser
   const parseCSV = (text: string) => {
     const lines = text.trim().split('\n').filter(l => l.trim())
     if (lines.length < 2) return []
@@ -251,25 +296,13 @@ export default function AdminPage() {
         score <= 20 ? 'critical' : score <= 40 ? 'emerging' : score <= 60 ? 'contested' : score <= 80 ? 'established' : 'category_defining'
       )
       const snapshotRow = {
-        brand_id: csvBrandId,
-        competitor_id: null,
-        kpi_name,
-        score,
-        zone,
-        confidence_level: 'external',
-        source: row.source?.trim() || 'Manual CSV upload',
-        snapshot_type: 'brand_level',
-        checkpoint: csvCheckpoint,
-        trigger_method: 'manual',
-        movement: null,
-        sources_count: 1,
-        last_updated: new Date().toISOString(),
-        status: 'pending_review',
+        brand_id: csvBrandId, competitor_id: null, kpi_name, score, zone,
+        confidence_level: 'external', source: row.source?.trim() || 'Manual CSV upload',
+        snapshot_type: 'brand_level', checkpoint: csvCheckpoint, trigger_method: 'manual',
+        movement: null, sources_count: 1, last_updated: new Date().toISOString(), status: 'pending_review',
       }
       await fetch(`${SUPABASE_URL}/rest/v1/kpi_snapshots`, {
-        method: 'POST',
-        headers: { ...headers, 'Prefer': 'return=minimal' },
-        body: JSON.stringify(snapshotRow)
+        method: 'POST', headers: { ...headers, 'Prefer': 'return=minimal' }, body: JSON.stringify(snapshotRow)
       })
       count++
     }
@@ -304,19 +337,12 @@ export default function AdminPage() {
     <div style={{minHeight:'100vh',background:'#f9f9f9',display:'flex'}}>
       <style>{`*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}body{font-family:'Inter',sans-serif}`}</style>
 
-      {/* SIDEBAR */}
       <div style={{width:220,background:DEEP,display:'flex',flexDirection:'column',position:'fixed',top:0,left:0,bottom:0,zIndex:50}}>
         <div style={{padding:'20px 16px',borderBottom:'1px solid rgba(255,255,255,0.07)'}}>
           <div style={{fontSize:10,color:GOLD,fontWeight:600,letterSpacing:'0.1em',textTransform:'uppercase'}}>King Solomon</div>
           <div style={{fontSize:12,color:CREAM_DIM,marginTop:2}}>Admin panel</div>
         </div>
-        {([
-          ['payments','💳 Payments'],
-          ['clients','🏢 Clients'],
-          ['approval','✅ Data approval'],
-          ['upload','📤 Data upload'],
-          ['scraper','🔍 Scraper'],
-        ] as const).map(([key, label]) => (
+        {([['payments','💳 Payments'],['clients','🏢 Clients'],['approval','✅ Data approval'],['upload','📤 Data upload'],['scraper','🔍 Scraper']] as const).map(([key, label]) => (
           <div key={key} onClick={() => { setSection(key); setSelectedClient(null); setMsg('') }}
             style={{padding:'10px 16px',fontSize:13,color:section===key?CREAM:CREAM_DIM,borderLeft:section===key?`2px solid ${GOLD}`:'2px solid transparent',background:section===key?'rgba(201,168,76,0.08)':'transparent',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'space-between'}}>
             <span>{label}</span>
@@ -330,7 +356,6 @@ export default function AdminPage() {
         </div>
       </div>
 
-      {/* MAIN */}
       <div style={{flex:1,marginLeft:220,padding:32}}>
         {msg && (
           <div style={{padding:'10px 16px',borderRadius:8,background:msg.startsWith('✅')?'rgba(95,198,138,0.1)':'rgba(232,120,120,0.1)',border:`1px solid ${msg.startsWith('✅')?'rgba(95,198,138,0.3)':'rgba(232,120,120,0.3)'}`,fontSize:13,color:msg.startsWith('✅')?'#1a6b1a':'#7a1a1a',marginBottom:20}}>
@@ -441,7 +466,7 @@ export default function AdminPage() {
         {section === 'approval' && (
           <div>
             <h1 style={{fontFamily:'Georgia,serif',fontSize:25,fontWeight:700,color:DARK,marginBottom:6}}>Data approval</h1>
-            <p style={{fontSize:14,color:BODY_TEXT,marginBottom:20}}>Tick or reject each KPI and CX theme. Rejected items require a re-scrape instruction. Hit Submit to process all decisions at once.</p>
+            <p style={{fontSize:14,color:BODY_TEXT,marginBottom:20}}>Tick or reject each KPI and CX theme. Generate and edit the Verdict before approving. Hit Submit to publish to client dashboard.</p>
 
             {/* IQ */}
             <div style={{marginBottom:32}}>
@@ -508,7 +533,7 @@ export default function AdminPage() {
               )}
             </div>
 
-            {/* EYE */}
+            {/* EYE — with signal distribution + editable verdict */}
             <div>
               <div style={{fontSize:11,fontWeight:600,color:MID_GREEN,textTransform:'uppercase',letterSpacing:'0.1em',marginBottom:12}}>Solomon&apos;s Eye — Pending review ({pendingAudits.length})</div>
               {pendingAudits.length === 0 ? (
@@ -520,8 +545,19 @@ export default function AdminPage() {
                     const rejectedThemes = themes.filter(t => themeDecisions[t.id]==='reject')
                     const allThemesDecided = themes.length > 0 && themes.every(t => !!themeDecisions[t.id])
                     const missingThemeInstructions = rejectedThemes.some(t => !themeInstructions[t.id])
+                    const verdicts = auditVerdicts[audit.id]
+                    const isGenerating = verdictGenerating[audit.id]
+
+                    // Signal distribution
+                    const totalNeg = themes.reduce((s, t) => s + (t.negative_signal_count || 0), 0)
+                    const totalPos = themes.reduce((s, t) => s + (t.positive_signal_count || 0), 0)
+                    const totalSig = totalPos + totalNeg
+                    const sortedByNeg = [...themes].sort((a, b) => (b.negative_signal_count || 0) - (a.negative_signal_count || 0))
+
                     return (
                       <div key={audit.id} style={{background:WHITE,border:`1px solid ${BORDER}`,borderRadius:12,padding:'20px 24px'}}>
+
+                        {/* Header */}
                         <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:16}}>
                           <div>
                             <span style={{fontSize:15,fontWeight:700,color:DARK}}>{getBrandName(audit.brand_id)}</span>
@@ -529,14 +565,53 @@ export default function AdminPage() {
                           </div>
                           <span style={{fontSize:10,fontWeight:600,padding:'3px 10px',borderRadius:20,background:'rgba(31,74,47,0.1)',color:MID_GREEN}}>Pending review</span>
                         </div>
+
+                        {/* Audit overview */}
                         <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:10,marginBottom:16}}>
-                          {[{label:'Overall CX NPS',val:audit.overall_cx_nps!==null?(audit.overall_cx_nps>0?`+${audit.overall_cx_nps}`:audit.overall_cx_nps):'--'},{label:'Total signals',val:audit.total_signals?.toLocaleString()||'--'},{label:'Audit type',val:audit.audit_type||'--'}].map(f => (
+                          {[
+                            {label:'Overall CX NPS',val:audit.overall_cx_nps!==null?(audit.overall_cx_nps>0?`+${audit.overall_cx_nps}`:audit.overall_cx_nps):'--'},
+                            {label:'Total signals',val:audit.total_signals?.toLocaleString()||'--'},
+                            {label:'Audit type',val:audit.audit_type||'--'}
+                          ].map(f => (
                             <div key={f.label} style={{background:'#f9f9f9',borderRadius:8,padding:'10px 12px'}}>
                               <div style={{fontSize:9,fontWeight:600,color:MID_GREEN,textTransform:'uppercase',letterSpacing:'0.1em',marginBottom:4}}>{f.label}</div>
                               <div style={{fontSize:18,fontWeight:700,color:DARK,fontFamily:'Georgia,serif'}}>{f.val}</div>
                             </div>
                           ))}
                         </div>
+
+                        {/* Signal distribution */}
+                        {totalSig > 0 && (
+                          <div style={{marginBottom:16,background:'#f9f9f9',borderRadius:10,padding:'14px 16px'}}>
+                            <div style={{fontSize:11,fontWeight:600,color:BODY_TEXT,textTransform:'uppercase',letterSpacing:'0.1em',marginBottom:10}}>Signal distribution</div>
+                            <div style={{display:'flex',gap:16,marginBottom:12}}>
+                              <div style={{fontSize:13,color:GREEN,fontWeight:600}}>✓ {totalPos} positive ({totalSig > 0 ? Math.round(totalPos/totalSig*100) : 0}%)</div>
+                              <div style={{fontSize:13,color:RED,fontWeight:600}}>✗ {totalNeg} negative ({totalSig > 0 ? Math.round(totalNeg/totalSig*100) : 0}%)</div>
+                            </div>
+                            {/* Stacked bar */}
+                            <div style={{height:8,borderRadius:4,background:'#e0e0e0',overflow:'hidden',marginBottom:12}}>
+                              <div style={{height:'100%',width:`${totalSig > 0 ? (totalPos/totalSig*100) : 0}%`,background:GREEN,borderRadius:4}}/>
+                            </div>
+                            {/* Per-theme negative contribution */}
+                            <div style={{fontSize:11,fontWeight:600,color:'#aaa',textTransform:'uppercase',letterSpacing:'0.08em',marginBottom:6}}>Negative signal contribution by theme</div>
+                            {sortedByNeg.filter(t => (t.negative_signal_count || 0) > 0).map(t => {
+                              const pct = totalNeg > 0 ? Math.round((t.negative_signal_count || 0) / totalNeg * 100) : 0
+                              return (
+                                <div key={t.theme} style={{marginBottom:6}}>
+                                  <div style={{display:'flex',justifyContent:'space-between',marginBottom:2}}>
+                                    <span style={{fontSize:11,color:DARK}}>{t.theme}</span>
+                                    <span style={{fontSize:11,color:RED,fontWeight:600}}>{pct}% ({t.negative_signal_count} signals)</span>
+                                  </div>
+                                  <div style={{height:5,borderRadius:3,background:'#e0e0e0',overflow:'hidden'}}>
+                                    <div style={{height:'100%',width:`${pct}%`,background:RED,borderRadius:3}}/>
+                                  </div>
+                                </div>
+                              )
+                            })}
+                          </div>
+                        )}
+
+                        {/* CX theme cards */}
                         <div style={{fontSize:11,fontWeight:600,color:BODY_TEXT,textTransform:'uppercase',letterSpacing:'0.1em',marginBottom:10}}>CX themes</div>
                         {themes.length === 0 ? (
                           <div style={{fontSize:13,color:'#aaa',marginBottom:16}}>No theme scores found for this audit.</div>
@@ -553,7 +628,8 @@ export default function AdminPage() {
                                   </div>
                                   {theme ? (
                                     <>
-                                      <div style={{fontSize:10,color:BODY_TEXT,marginBottom:6,textTransform:'capitalize'}}>{theme.sentiment}</div>
+                                      <div style={{fontSize:10,color:BODY_TEXT,marginBottom:3,textTransform:'capitalize'}}>{theme.sentiment}</div>
+                                      <div style={{fontSize:9,color:'#aaa',marginBottom:6}}>+{theme.positive_signal_count||0} / -{theme.negative_signal_count||0}</div>
                                       <div style={{display:'flex',gap:4,justifyContent:'center'}}>
                                         <button onClick={() => setThemeDecisions(prev => ({...prev,[theme.id]:'approve'}))} style={{width:28,height:28,borderRadius:6,border:`1px solid ${decision==='approve'?GREEN:BORDER}`,background:decision==='approve'?GREEN:WHITE,color:decision==='approve'?WHITE:'#aaa',fontSize:13,cursor:'pointer',fontWeight:700}}>✓</button>
                                         <button onClick={() => setThemeDecisions(prev => ({...prev,[theme.id]:'reject'}))} style={{width:28,height:28,borderRadius:6,border:`1px solid ${decision==='reject'?RED:BORDER}`,background:decision==='reject'?RED:WHITE,color:decision==='reject'?WHITE:'#aaa',fontSize:13,cursor:'pointer',fontWeight:700}}>✗</button>
@@ -565,6 +641,8 @@ export default function AdminPage() {
                             })}
                           </div>
                         )}
+
+                        {/* Rejection instructions */}
                         {rejectedThemes.length > 0 && (
                           <div style={{marginBottom:16,display:'flex',flexDirection:'column',gap:8}}>
                             {rejectedThemes.map(theme => (
@@ -575,12 +653,77 @@ export default function AdminPage() {
                             ))}
                           </div>
                         )}
+
+                        {/* AI Verdict section */}
+                        <div style={{borderTop:`1px solid ${BORDER}`,paddingTop:16,marginBottom:16}}>
+                          <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:12}}>
+                            <div style={{fontSize:11,fontWeight:600,color:GOLD,textTransform:'uppercase',letterSpacing:'0.1em'}}>Solomon&apos;s Eye Verdict</div>
+                            <button
+                              onClick={() => generateVerdict(audit, themes)}
+                              disabled={isGenerating || themes.length === 0}
+                              style={{padding:'7px 14px',background:isGenerating?'#e0e0e0':MID_GREEN,color:isGenerating?'#aaa':WHITE,border:'none',borderRadius:7,fontSize:12,fontWeight:600,cursor:isGenerating?'not-allowed':'pointer',fontFamily:'Inter,sans-serif'}}
+                            >
+                              {isGenerating ? '⏳ Generating...' : verdicts ? '↻ Regenerate' : '✦ Generate verdict'}
+                            </button>
+                          </div>
+
+                          {verdicts ? (
+                            <div style={{display:'flex',flexDirection:'column',gap:10}}>
+                              {/* Per-theme verdicts */}
+                              {CX_THEMES.map(themeName => (
+                                verdicts.theme_verdicts?.[themeName] ? (
+                                  <div key={themeName} style={{background:'#f9f9f9',borderRadius:8,padding:'12px 14px'}}>
+                                    <div style={{fontSize:10,fontWeight:600,color:MID_GREEN,textTransform:'uppercase',letterSpacing:'0.1em',marginBottom:6}}>{themeName}</div>
+                                    <textarea
+                                      value={verdicts.theme_verdicts[themeName]}
+                                      onChange={e => setAuditVerdicts(prev => ({
+                                        ...prev,
+                                        [audit.id]: {
+                                          ...prev[audit.id],
+                                          theme_verdicts: { ...prev[audit.id].theme_verdicts, [themeName]: e.target.value }
+                                        }
+                                      }))}
+                                      rows={2}
+                                      style={{width:'100%',padding:'8px 10px',border:`1px solid ${BORDER}`,borderRadius:6,fontSize:13,color:DARK,fontFamily:'Inter,sans-serif',resize:'vertical',lineHeight:1.6}}
+                                    />
+                                  </div>
+                                ) : null
+                              ))}
+                              {/* Overall verdict */}
+                              {verdicts.overall_verdict && (
+                                <div style={{background:'rgba(201,168,76,0.06)',border:`1px solid rgba(201,168,76,0.2)`,borderRadius:8,padding:'12px 14px'}}>
+                                  <div style={{fontSize:10,fontWeight:600,color:GOLD,textTransform:'uppercase',letterSpacing:'0.1em',marginBottom:6}}>Overall Eye Verdict</div>
+                                  <textarea
+                                    value={verdicts.overall_verdict}
+                                    onChange={e => setAuditVerdicts(prev => ({
+                                      ...prev,
+                                      [audit.id]: { ...prev[audit.id], overall_verdict: e.target.value }
+                                    }))}
+                                    rows={3}
+                                    style={{width:'100%',padding:'8px 10px',border:`1px solid rgba(201,168,76,0.3)`,borderRadius:6,fontSize:13,color:DARK,fontFamily:'Georgia,serif',fontStyle:'italic',resize:'vertical',lineHeight:1.7}}
+                                  />
+                                </div>
+                              )}
+                            </div>
+                          ) : (
+                            <div style={{fontSize:13,color:'#aaa',fontStyle:'italic'}}>
+                              Click &quot;Generate verdict&quot; to auto-generate theme verdicts and overall Eye Verdict from the signal data. You can edit before approving.
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Submit */}
                         <div style={{display:'flex',alignItems:'center',justifyContent:'space-between'}}>
                           <div style={{fontSize:12,color:'#aaa'}}>{themes.filter(t=>themeDecisions[t.id]==='approve').length} approved · {themes.filter(t=>themeDecisions[t.id]==='reject').length} flagged · {themes.filter(t=>!themeDecisions[t.id]).length} undecided</div>
-                          <button onClick={() => { if(!allThemesDecided){setMsg('❌ Please tick or reject every CX theme before submitting.');return} if(missingThemeInstructions){setMsg('❌ Please add a re-scrape instruction for every rejected theme.');return} submitAuditDecisions(audit) }} disabled={loading}
-                            style={{padding:'9px 20px',background:allThemesDecided&&!missingThemeInstructions?GOLD:'#e0e0e0',color:allThemesDecided&&!missingThemeInstructions?DEEP:'#aaa',border:'none',borderRadius:8,fontSize:13,fontWeight:600,cursor:allThemesDecided?'pointer':'not-allowed',fontFamily:'Inter,sans-serif'}}>
-                            {loading?'Submitting...':'Submit decisions →'}
-                          </button>
+                          <button
+                            onClick={() => {
+                              if(!allThemesDecided){setMsg('❌ Please tick or reject every CX theme before submitting.');return}
+                              if(missingThemeInstructions){setMsg('❌ Please add a re-scrape instruction for every rejected theme.');return}
+                              submitAuditDecisions(audit)
+                            }}
+                            disabled={loading}
+                            style={{padding:'9px 20px',background:allThemesDecided&&!missingThemeInstructions?GOLD:'#e0e0e0',color:allThemesDecided&&!missingThemeInstructions?DEEP:'#aaa',border:'none',borderRadius:8,fontSize:13,fontWeight:600,cursor:allThemesDecided?'pointer':'not-allowed',fontFamily:'Inter,sans-serif'}}
+                          >{loading?'Submitting...':'Submit decisions →'}</button>
                         </div>
                       </div>
                     )
@@ -595,9 +738,7 @@ export default function AdminPage() {
         {section === 'upload' && (
           <div style={{maxWidth:800}}>
             <h1 style={{fontFamily:'Georgia,serif',fontSize:25,fontWeight:700,color:DARK,marginBottom:6}}>Data upload</h1>
-            <p style={{fontSize:14,color:BODY_TEXT,marginBottom:24}}>Upload KPI data from any external tool (Awario, Brand24, etc.) as a CSV. Data goes into your approval workflow before reaching the client dashboard.</p>
-
-            {/* Format guide */}
+            <p style={{fontSize:14,color:BODY_TEXT,marginBottom:24}}>Upload KPI data from any external tool as a CSV. Data goes into your approval workflow before reaching the client dashboard.</p>
             <div style={{background:'#f9f9f9',border:`1px solid ${BORDER}`,borderRadius:10,padding:'14px 18px',marginBottom:20}}>
               <div style={{fontSize:11,fontWeight:600,color:GOLD,textTransform:'uppercase',letterSpacing:'0.1em',marginBottom:8}}>Required CSV format</div>
               <code style={{fontSize:12,color:DARK,display:'block',lineHeight:1.8}}>
@@ -608,10 +749,8 @@ export default function AdminPage() {
                 imagery, 61, established, Manual<br/>
                 buzz, +12, contested, Awario export
               </code>
-              <div style={{fontSize:11,color:'#aaa',marginTop:8}}>kpi_name must be: awareness, consideration, usage, imagery, or buzz. zone and source are optional.</div>
+              <div style={{fontSize:11,color:'#aaa',marginTop:8}}>kpi_name must be: awareness, consideration, usage, imagery, or buzz.</div>
             </div>
-
-            {/* Brand + checkpoint selector */}
             <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:12,marginBottom:16}}>
               <div>
                 <div style={{fontSize:11,fontWeight:600,color:GOLD,textTransform:'uppercase',letterSpacing:'0.1em',marginBottom:6}}>Brand</div>
@@ -630,31 +769,18 @@ export default function AdminPage() {
                 </select>
               </div>
             </div>
-
-            {/* CSV paste area */}
             <div style={{marginBottom:12}}>
               <div style={{fontSize:11,fontWeight:600,color:GOLD,textTransform:'uppercase',letterSpacing:'0.1em',marginBottom:6}}>Paste CSV data</div>
-              <textarea
-                value={csvText}
-                onChange={e => { setCsvText(e.target.value); setCsvPreview([]) }}
-                placeholder={'kpi_name, score, zone, source\nawareness, 68, established, Awario\nconsideration, 45, contested, Awario'}
-                rows={8}
-                style={{width:'100%',padding:'12px 14px',border:`1px solid ${BORDER}`,borderRadius:8,fontSize:13,color:DARK,fontFamily:'monospace',resize:'vertical'}}
-              />
+              <textarea value={csvText} onChange={e => { setCsvText(e.target.value); setCsvPreview([]) }} placeholder={'kpi_name, score, zone, source\nawareness, 68, established, Awario'} rows={8} style={{width:'100%',padding:'12px 14px',border:`1px solid ${BORDER}`,borderRadius:8,fontSize:13,color:DARK,fontFamily:'monospace',resize:'vertical'}}/>
             </div>
-
             <div style={{display:'flex',gap:8,marginBottom:20}}>
-              <button onClick={handleCSVPreview} style={{padding:'9px 18px',background:MID_GREEN,color:WHITE,border:'none',borderRadius:8,fontSize:13,fontWeight:600,cursor:'pointer',fontFamily:'Inter,sans-serif'}}>
-                Preview →
-              </button>
+              <button onClick={handleCSVPreview} style={{padding:'9px 18px',background:MID_GREEN,color:WHITE,border:'none',borderRadius:8,fontSize:13,fontWeight:600,cursor:'pointer',fontFamily:'Inter,sans-serif'}}>Preview →</button>
               {csvPreview.length > 0 && (
                 <button onClick={handleCSVUpload} disabled={csvUploading} style={{padding:'9px 18px',background:GOLD,color:DEEP,border:'none',borderRadius:8,fontSize:13,fontWeight:600,cursor:'pointer',fontFamily:'Inter,sans-serif'}}>
                   {csvUploading ? 'Uploading...' : `Upload ${csvPreview.length} rows →`}
                 </button>
               )}
             </div>
-
-            {/* Preview table */}
             {csvPreview.length > 0 && (
               <div style={{background:WHITE,border:`1px solid ${BORDER}`,borderRadius:12,overflow:'hidden'}}>
                 <div style={{padding:'10px 16px',borderBottom:`1px solid ${BORDER}`,fontSize:11,fontWeight:600,color:GOLD,textTransform:'uppercase',letterSpacing:'0.1em'}}>
@@ -686,9 +812,7 @@ export default function AdminPage() {
         {section === 'scraper' && (
           <div>
             <h1 style={{fontFamily:'Georgia,serif',fontSize:25,fontWeight:700,color:DARK,marginBottom:6}}>Scraper</h1>
-            <p style={{fontSize:14,color:BODY_TEXT,marginBottom:24}}>Trigger a fresh data collection run for all brands with paid products. Make sure the local server is running first.</p>
-
-            {/* Run scraper button */}
+            <p style={{fontSize:14,color:BODY_TEXT,marginBottom:24}}>Trigger a fresh data collection run for all brands with paid products.</p>
             <div style={{background:WHITE,border:`1px solid ${BORDER}`,borderRadius:12,padding:'24px',marginBottom:24}}>
               <div style={{fontSize:11,fontWeight:600,color:GOLD,textTransform:'uppercase',letterSpacing:'0.1em',marginBottom:8}}>Run scraper</div>
               <p style={{fontSize:13,color:BODY_TEXT,marginBottom:16,lineHeight:1.6}}>
@@ -701,25 +825,16 @@ export default function AdminPage() {
                     try {
                       const statusRes = await fetch('https://kingsolomonhq-production.up.railway.app/status')
                       const statusData = await statusRes.json()
-                      if (statusData.status === 'offline') {
-                        setMsg('❌ Local server is not running. Open VS Code terminal and run: py server.py')
-                        return
-                      }
-                      if (statusData.status === 'running') {
-                        setMsg('⏳ Scraper is already running. Check back in a few minutes.')
-                        return
-                      }
+                      if (statusData.status === 'running') { setMsg('⏳ Scraper is already running. Check back in a few minutes.'); return }
                       const res = await fetch('https://kingsolomonhq-production.up.railway.app/trigger', { method: 'POST' })
                       const data = await res.json()
                       if (data.status === 'started') {
                         setMsg('✅ Scraper started. Data will appear in Data approval in 5-10 minutes.')
-                      } else if (data.status === 'already_running') {
-                        setMsg('⏳ Scraper is already running. Check back in a few minutes.')
                       } else {
                         setMsg(`❌ ${data.message}`)
                       }
                     } catch {
-                      setMsg('❌ Could not reach local scraper server. Make sure py server.py is running in VS Code terminal.')
+                      setMsg('❌ Could not reach scraper server.')
                     }
                   }}
                   style={{padding:'12px 24px',background:DEEP,color:CREAM,border:'none',borderRadius:8,fontSize:14,fontWeight:600,cursor:'pointer',fontFamily:'Inter,sans-serif'}}
@@ -734,17 +849,16 @@ export default function AdminPage() {
                       } else if (data.status === 'idle') {
                         setMsg('✅ Scraper server is online and idle. Ready to run.')
                       } else {
-                        setMsg('❌ Local server is not running. Run: py server.py')
+                        setMsg('❌ Scraper server is not responding.')
                       }
                     } catch {
-                      setMsg('❌ Local server is not running. Run: py server.py')
+                      setMsg('❌ Could not reach scraper server.')
                     }
                   }}
                   style={{padding:'12px 20px',background:'#f5f5f5',color:DARK,border:`1px solid ${BORDER}`,borderRadius:8,fontSize:13,fontWeight:600,cursor:'pointer',fontFamily:'Inter,sans-serif'}}
                 >Check status</button>
               </div>
             </div>
-
             <div style={{fontSize:11,fontWeight:600,color:GOLD,textTransform:'uppercase',letterSpacing:'0.1em',marginBottom:12}}>Per-brand instructions</div>
             <p style={{fontSize:13,color:BODY_TEXT,marginBottom:16}}>Add custom instructions per brand. These are picked up on the next scraper run.</p>
             <div style={{display:'flex',flexDirection:'column',gap:12}}>
@@ -753,14 +867,12 @@ export default function AdminPage() {
                   <div style={{fontSize:14,fontWeight:600,color:DARK,marginBottom:4}}>{b.brand_name}</div>
                   <div style={{fontSize:12,color:'#aaa',marginBottom:10}}>{b.category} · {b.geo || 'IN'}</div>
                   <textarea placeholder="Add scraper instructions for this brand..." value={scraperInstructions[b.id]||''} onChange={e => setScraperInstructions(prev => ({...prev,[b.id]:e.target.value}))} rows={3} style={{width:'100%',padding:'10px 12px',border:`1px solid ${BORDER}`,borderRadius:8,fontSize:13,color:DARK,fontFamily:'Inter,sans-serif',resize:'vertical',marginBottom:8}}/>
-                  <div style={{display:'flex',gap:8}}>
-                    <button onClick={async () => {
-                      const instruction = scraperInstructions[b.id]||''
-                      if(!instruction){setMsg('❌ Please add an instruction first.');return}
-                      await fetch(`${SUPABASE_URL}/rest/v1/brands?id=eq.${b.id}`,{method:'PATCH',headers:{...headers,'Prefer':'return=minimal'},body:JSON.stringify({scraper_instruction:instruction})})
-                      setMsg('✅ Instruction saved. Will be used on next scraper run.')
-                    }} style={{padding:'7px 14px',background:GOLD,color:DEEP,border:'none',borderRadius:7,fontSize:12,fontWeight:600,cursor:'pointer',fontFamily:'Inter,sans-serif'}}>Save instruction</button>
-                  </div>
+                  <button onClick={async () => {
+                    const instruction = scraperInstructions[b.id]||''
+                    if(!instruction){setMsg('❌ Please add an instruction first.');return}
+                    await fetch(`${SUPABASE_URL}/rest/v1/brands?id=eq.${b.id}`,{method:'PATCH',headers:{...headers,'Prefer':'return=minimal'},body:JSON.stringify({scraper_instruction:instruction})})
+                    setMsg('✅ Instruction saved. Will be used on next scraper run.')
+                  }} style={{padding:'7px 14px',background:GOLD,color:DEEP,border:'none',borderRadius:7,fontSize:12,fontWeight:600,cursor:'pointer',fontFamily:'Inter,sans-serif'}}>Save instruction</button>
                 </div>
               ))}
               {brands.length === 0 && <div style={{color:'#aaa',fontSize:13}}>No brands yet.</div>}
