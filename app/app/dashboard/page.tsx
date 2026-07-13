@@ -47,6 +47,8 @@ interface KpiSnapshot {
   sources_count?: number | null
   last_updated?: string | null
   status?: string
+  positive_keywords?: string | null
+  negative_keywords?: string | null
 }
 
 interface Competitor { id: string; name: string }
@@ -80,6 +82,8 @@ interface CxThemeScore {
   top_concern: string | null
   sentiment: string
   confidence: string
+  positive_keywords?: string | null
+  negative_keywords?: string | null
 }
 
 interface CxVerdict {
@@ -93,19 +97,16 @@ const ZONE_LABEL: Record<string, string> = {
   critical: 'Critical', emerging: 'Emerging', contested: 'Contested',
   established: 'Established', category_defining: 'Category Defining',
 }
-
 const ZONE_COLOR: Record<string, string> = {
   critical: RED, emerging: '#E2C97A', contested: AMBER,
   established: GREEN, category_defining: GREEN,
 }
-
 const TIME_WINDOWS: { key: TimeWindow; label: string }[] = [
   { key: 'current', label: 'Now' },
   { key: '30d', label: '30d' },
   { key: '60d', label: '60d' },
   { key: '90d', label: '90d' },
 ]
-
 const KPI_SUB_BUCKETS: Record<KpiName, { key: string; label: string }[]> = {
   awareness: [
     { key: 'sub_bucket_searched', label: 'Searched' },
@@ -161,6 +162,36 @@ function sentimentDot(sentiment: string): string {
   return AMBER
 }
 
+// Word cloud component
+function WordCloud({ keywords, color, label }: { keywords: string; color: string; label: string }) {
+  if (!keywords) return null
+  const words = keywords.split(',').map(w => w.trim()).filter(Boolean)
+  if (!words.length) return null
+  const maxSize = 22
+  const minSize = 11
+  return (
+    <div style={{marginBottom:16}}>
+      <div style={{fontSize:10,fontWeight:600,color,textTransform:'uppercase',letterSpacing:'0.1em',marginBottom:8}}>{label}</div>
+      <div style={{display:'flex',flexWrap:'wrap',gap:6,padding:'12px 14px',background:'#f9f9f9',borderRadius:8,border:`1px solid ${BORDER}`}}>
+        {words.map((word, i) => {
+          const size = Math.round(maxSize - (i / Math.max(words.length - 1, 1)) * (maxSize - minSize))
+          const opacity = 1 - (i / words.length) * 0.5
+          return (
+            <span key={word} style={{
+              fontSize: size,
+              fontWeight: i < 3 ? 700 : i < 6 ? 600 : 400,
+              color,
+              opacity,
+              fontFamily: 'Inter, sans-serif',
+              lineHeight: 1.4,
+            }}>{word}</span>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
 export default function DashboardPage() {
   const [user, setUser] = useState<any>(null)
   const [brand, setBrand] = useState<any>(null)
@@ -182,7 +213,7 @@ export default function DashboardPage() {
   const fetchKpis = async (brandId: string, window: TimeWindow) => {
     const { data } = await supabase
       .from('kpi_snapshots')
-      .select('kpi_name, score, zone, movement, confidence_level, source, competitor_id, sub_bucket_searched, sub_bucket_found, sub_bucket_shown, sub_bucket_comparing, sub_bucket_trialling, sub_bucket_interested, sub_bucket_repeat, sub_bucket_switchers, sub_bucket_lost, sub_bucket_praising, sub_bucket_questioning, sub_bucket_attacking, sources_count, last_updated, status')
+      .select('kpi_name, score, zone, movement, confidence_level, source, competitor_id, sub_bucket_searched, sub_bucket_found, sub_bucket_shown, sub_bucket_comparing, sub_bucket_trialling, sub_bucket_interested, sub_bucket_repeat, sub_bucket_switchers, sub_bucket_lost, sub_bucket_praising, sub_bucket_questioning, sub_bucket_attacking, sources_count, last_updated, status, positive_keywords, negative_keywords')
       .eq('brand_id', brandId)
       .eq('snapshot_type', 'brand_level')
       .eq('checkpoint', window)
@@ -234,7 +265,7 @@ export default function DashboardPage() {
         setCxAudit(audit as CxAudit)
         const { data: themes } = await supabase
           .from('cx_theme_scores')
-          .select('theme, nps_score, signal_count, dropout_rate, top_concern, sentiment, confidence')
+          .select('theme, nps_score, signal_count, dropout_rate, top_concern, sentiment, confidence, positive_keywords, negative_keywords')
           .eq('audit_id', audit.id)
         if (themes) setCxThemes(themes as CxThemeScore[])
         const { data: cv } = await supabase
@@ -301,6 +332,24 @@ export default function DashboardPage() {
   const showBuzzRisk = buzz && buzz.movement !== null && buzz.movement <= -7
   const totalSources = brandKpis.reduce((max, k) => Math.max(max, k.sources_count || 0), 0)
   const lastUpdated = brandKpis[0]?.last_updated
+
+  // Combine Eye keywords across all themes for word clouds
+  const eyePosKeywords = cxThemes
+    .map(t => t.positive_keywords || '')
+    .join(', ')
+    .split(',')
+    .map(w => w.trim())
+    .filter(Boolean)
+  const eyeNegKeywords = cxThemes
+    .map(t => t.negative_keywords || '')
+    .join(', ')
+    .split(',')
+    .map(w => w.trim())
+    .filter(Boolean)
+
+  // Deduplicate and keep top 15 for Eye word clouds
+  const eyePosUnique = [...new Set(eyePosKeywords)].slice(0, 15).join(', ')
+  const eyeNegUnique = [...new Set(eyeNegKeywords)].slice(0, 15).join(', ')
 
   if (loading) return (
     <div style={{minHeight:'100vh',display:'flex',alignItems:'center',justifyContent:'center',background:DEEP}}>
@@ -481,6 +530,21 @@ export default function DashboardPage() {
               </div>
             )}
 
+            {/* Buzz Word Clouds */}
+            {buzz && (buzz.positive_keywords || buzz.negative_keywords) && (
+              <div style={{background:WHITE,border:`1px solid ${BORDER}`,borderRadius:12,padding:'20px 24px',marginBottom:24,boxShadow:'0 1px 4px rgba(0,0,0,0.04)'}}>
+                <div style={{fontSize:11,fontWeight:600,color:BODY_TEXT,textTransform:'uppercase',letterSpacing:'0.1em',marginBottom:14}}>Buzz — Consumer signal keywords</div>
+                <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:16}}>
+                  {buzz.positive_keywords && (
+                    <WordCloud keywords={buzz.positive_keywords} color={GREEN} label="What consumers are saying positively" />
+                  )}
+                  {buzz.negative_keywords && (
+                    <WordCloud keywords={buzz.negative_keywords} color={RED} label="What consumers are saying negatively" />
+                  )}
+                </div>
+              </div>
+            )}
+
             {/* Competitor table */}
             {competitors.length > 0 && brandKpis.length > 0 && (
               <div style={{background:WHITE,border:`1px solid ${BORDER}`,borderRadius:12,overflow:'hidden',marginBottom:24,boxShadow:'0 1px 4px rgba(0,0,0,0.04)'}}>
@@ -536,7 +600,6 @@ export default function DashboardPage() {
                             const structAhead = bothHigh && diff >= MMD && compRank > brandRank
                             const dirAhead = bothHigh && diff >= MMD && compRank <= brandRank
                             const inRange = compKpi && brandKpi && Math.abs(diff) < MMD
-                            const lowConf = compKpi && brandKpi && !bothHigh
                             return (
                               <td key={kpiName} style={{textAlign:'center',padding:'12px 16px',fontSize:14,fontWeight:structAhead?600:400,color:structAhead?GREEN:dirAhead?AMBER:'#bbb'}}>
                                 {compKpi ? (
@@ -545,7 +608,6 @@ export default function DashboardPage() {
                                     {structAhead && <span style={{fontSize:9,color:GREEN}}>↑ ahead</span>}
                                     {dirAhead && <span style={{fontSize:9,color:AMBER}}>~ directional</span>}
                                     {inRange && <span style={{fontSize:9,color:'#bbb'}}>~ in range</span>}
-                                    {lowConf && <span style={{fontSize:9,color:'#bbb'}}>⚠ low conf</span>}
                                   </div>
                                 ) : '--'}
                               </td>
@@ -619,7 +681,7 @@ export default function DashboardPage() {
               <div style={{textAlign:'center',padding:'80px 24px'}}>
                 <div style={{fontSize:36,marginBottom:16}}>👁</div>
                 <h2 style={{fontFamily:'Georgia,serif',fontSize:25,fontWeight:700,color:DARK,marginBottom:12}}>Solomon&apos;s Eye</h2>
-                <p style={{fontSize:15,color:BODY_TEXT,maxWidth:440,margin:'0 auto 28px',lineHeight:1.75}}>CX audit not active on your account. Purchase Solomon&apos;s Eye to see your full customer experience audit — by theme, by sub-touchpoint, with drop-off rates and Solomon&apos;s Eye Verdict.</p>
+                <p style={{fontSize:15,color:BODY_TEXT,maxWidth:440,margin:'0 auto 28px',lineHeight:1.75}}>CX audit not active on your account. Purchase Solomon&apos;s Eye to see your full customer experience audit.</p>
                 <div style={{display:'grid',gridTemplateColumns:'repeat(5,1fr)',gap:10,maxWidth:700,margin:'0 auto 28px',opacity:0.3,filter:'blur(2px)',pointerEvents:'none'}}>
                   {CX_THEMES.map(theme => (
                     <div key={theme} style={{background:WHITE,border:`1px solid ${BORDER}`,borderRadius:10,padding:'16px 12px',textAlign:'center'}}>
@@ -652,6 +714,7 @@ export default function DashboardPage() {
                   </p>
                 </div>
 
+                {/* Overall NPS */}
                 <div style={{background:WHITE,border:`1px solid ${BORDER}`,borderRadius:12,padding:'20px 24px',marginBottom:20,boxShadow:'0 1px 4px rgba(0,0,0,0.04)',display:'flex',alignItems:'center',gap:32}}>
                   <div>
                     <div style={{fontSize:11,fontWeight:600,color:GOLD,textTransform:'uppercase',letterSpacing:'0.1em',marginBottom:6}}>Overall CX NPS</div>
@@ -671,6 +734,7 @@ export default function DashboardPage() {
                   </div>
                 </div>
 
+                {/* Theme cards */}
                 <p style={{fontSize:11,fontWeight:600,color:BODY_TEXT,textTransform:'uppercase',letterSpacing:'0.12em',marginBottom:12}}>CX by theme</p>
                 <div style={{display:'grid',gridTemplateColumns:'repeat(5,1fr)',gap:12,marginBottom:24}}>
                   {CX_THEMES.map(theme => {
@@ -703,6 +767,22 @@ export default function DashboardPage() {
                   })}
                 </div>
 
+                {/* Eye Word Clouds */}
+                {(eyePosUnique || eyeNegUnique) && (
+                  <div style={{background:WHITE,border:`1px solid ${BORDER}`,borderRadius:12,padding:'20px 24px',marginBottom:24,boxShadow:'0 1px 4px rgba(0,0,0,0.04)'}}>
+                    <div style={{fontSize:11,fontWeight:600,color:BODY_TEXT,textTransform:'uppercase',letterSpacing:'0.1em',marginBottom:14}}>Consumer signal keywords — across all CX themes</div>
+                    <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:16}}>
+                      {eyePosUnique && (
+                        <WordCloud keywords={eyePosUnique} color={GREEN} label="What customers love" />
+                      )}
+                      {eyeNegUnique && (
+                        <WordCloud keywords={eyeNegUnique} color={RED} label="What customers complain about" />
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {/* Eye Verdict */}
                 {cxVerdict ? (
                   <div style={{background:WHITE,border:`1px solid ${BORDER}`,borderRadius:12,padding:'28px 32px',boxShadow:'0 1px 4px rgba(0,0,0,0.04)'}}>
                     <div style={{display:'inline-flex',alignItems:'center',gap:8,background:'rgba(201,168,76,0.1)',border:'1px solid rgba(201,168,76,0.25)',borderRadius:20,padding:'4px 14px',marginBottom:16}}>
@@ -713,7 +793,7 @@ export default function DashboardPage() {
                     )}
                     {cxVerdict.mystery_audit_triggered && (
                       <div style={{background:'rgba(201,168,76,0.08)',border:'1px solid rgba(201,168,76,0.3)',borderRadius:8,padding:'12px 16px',marginBottom:16,fontSize:13,color:'#7a5c00'}}>
-                        ⚠ Mystery audit recommended — one or more themes have insufficient signal volume. <a href="/pricing" style={{color:GOLD,fontWeight:500}}>Add mystery audit →</a>
+                        ⚠ Mystery audit recommended. <a href="/pricing" style={{color:GOLD,fontWeight:500}}>Add mystery audit →</a>
                       </div>
                     )}
                   </div>
