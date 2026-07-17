@@ -162,7 +162,6 @@ function sentimentDot(sentiment: string): string {
   return AMBER
 }
 
-// Word cloud component
 function WordCloud({ keywords, color, label }: { keywords: string; color: string; label: string }) {
   if (!keywords) return null
   const words = keywords.split(',').map(w => w.trim()).filter(Boolean)
@@ -177,14 +176,7 @@ function WordCloud({ keywords, color, label }: { keywords: string; color: string
           const size = Math.round(maxSize - (i / Math.max(words.length - 1, 1)) * (maxSize - minSize))
           const opacity = 1 - (i / words.length) * 0.5
           return (
-            <span key={word} style={{
-              fontSize: size,
-              fontWeight: i < 3 ? 700 : i < 6 ? 600 : 400,
-              color,
-              opacity,
-              fontFamily: 'Inter, sans-serif',
-              lineHeight: 1.4,
-            }}>{word}</span>
+            <span key={word} style={{fontSize:size,fontWeight:i<3?700:i<6?600:400,color,opacity,fontFamily:'Inter, sans-serif',lineHeight:1.4}}>{word}</span>
           )
         })}
       </div>
@@ -333,21 +325,8 @@ export default function DashboardPage() {
   const totalSources = brandKpis.reduce((max, k) => Math.max(max, k.sources_count || 0), 0)
   const lastUpdated = brandKpis[0]?.last_updated
 
-  // Combine Eye keywords across all themes for word clouds
-  const eyePosKeywords = cxThemes
-    .map(t => t.positive_keywords || '')
-    .join(', ')
-    .split(',')
-    .map(w => w.trim())
-    .filter(Boolean)
-  const eyeNegKeywords = cxThemes
-    .map(t => t.negative_keywords || '')
-    .join(', ')
-    .split(',')
-    .map(w => w.trim())
-    .filter(Boolean)
-
-  // Deduplicate and keep top 15 for Eye word clouds
+  const eyePosKeywords = cxThemes.map(t => t.positive_keywords || '').join(', ').split(',').map(w => w.trim()).filter(Boolean)
+  const eyeNegKeywords = cxThemes.map(t => t.negative_keywords || '').join(', ').split(',').map(w => w.trim()).filter(Boolean)
   const eyePosUnique = [...new Set(eyePosKeywords)].slice(0, 15).join(', ')
   const eyeNegUnique = [...new Set(eyeNegKeywords)].slice(0, 15).join(', ')
 
@@ -535,12 +514,8 @@ export default function DashboardPage() {
               <div style={{background:WHITE,border:`1px solid ${BORDER}`,borderRadius:12,padding:'20px 24px',marginBottom:24,boxShadow:'0 1px 4px rgba(0,0,0,0.04)'}}>
                 <div style={{fontSize:11,fontWeight:600,color:BODY_TEXT,textTransform:'uppercase',letterSpacing:'0.1em',marginBottom:14}}>Buzz — Consumer signal keywords</div>
                 <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:16}}>
-                  {buzz.positive_keywords && (
-                    <WordCloud keywords={buzz.positive_keywords} color={GREEN} label="What consumers are saying positively" />
-                  )}
-                  {buzz.negative_keywords && (
-                    <WordCloud keywords={buzz.negative_keywords} color={RED} label="What consumers are saying negatively" />
-                  )}
+                  {buzz.positive_keywords && <WordCloud keywords={buzz.positive_keywords} color={GREEN} label="What consumers are saying positively" />}
+                  {buzz.negative_keywords && <WordCloud keywords={buzz.negative_keywords} color={RED} label="What consumers are saying negatively" />}
                 </div>
               </div>
             )}
@@ -557,9 +532,7 @@ export default function DashboardPage() {
                     <thead>
                       <tr style={{background:'#fafafa'}}>
                         <th style={{textAlign:'left',padding:'10px 24px',fontWeight:600,color:'#aaa',fontSize:11,textTransform:'uppercase',letterSpacing:'0.08em',width:180}}>Brand</th>
-                        {KPI_NAMES.map(k => (
-                          <th key={k} style={{textAlign:'center',padding:'10px 16px',fontWeight:600,color:'#aaa',fontSize:11,textTransform:'uppercase',letterSpacing:'0.08em'}}>{k}</th>
-                        ))}
+                        {KPI_NAMES.map(k => <th key={k} style={{textAlign:'center',padding:'10px 16px',fontWeight:600,color:'#aaa',fontSize:11,textTransform:'uppercase',letterSpacing:'0.08em'}}>{k}</th>)}
                       </tr>
                     </thead>
                     <tbody>
@@ -573,11 +546,7 @@ export default function DashboardPage() {
                         </td>
                         {KPI_NAMES.map(kpiName => {
                           const kpi = getBrandKpi(kpiName)
-                          return (
-                            <td key={kpiName} style={{textAlign:'center',padding:'12px 16px',color:DARK,fontWeight:600,fontSize:14}}>
-                              {kpi ? scoreDisplay(kpiName, kpi.score) : '--'}
-                            </td>
-                          )
+                          return <td key={kpiName} style={{textAlign:'center',padding:'12px 16px',color:DARK,fontWeight:600,fontSize:14}}>{kpi ? scoreDisplay(kpiName, kpi.score) : '--'}</td>
                         })}
                       </tr>
                       {competitors.map((comp) => (
@@ -618,6 +587,19 @@ export default function DashboardPage() {
                     </tbody>
                   </table>
                 </div>
+              </div>
+            )}
+
+            {/* IQ Report download banner */}
+            {brand?.iq_report_ready && (
+              <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'14px 20px',background:'rgba(201,168,76,0.06)',border:'1px solid rgba(201,168,76,0.25)',borderRadius:10,marginBottom:20}}>
+                <div>
+                  <div style={{fontSize:13,fontWeight:600,color:DARK,marginBottom:2}}>Your IQ report is ready</div>
+                  <div style={{fontSize:12,color:BODY_TEXT}}>Download your full brand intelligence report as a PDF.</div>
+                </div>
+                <a href="/report/iq" target="_blank" style={{padding:'10px 20px',background:GOLD,color:DEEP,borderRadius:8,fontSize:13,fontWeight:600,textDecoration:'none',whiteSpace:'nowrap'}}>
+                  ⬇ Download IQ Report
+                </a>
               </div>
             )}
 
@@ -714,7 +696,6 @@ export default function DashboardPage() {
                   </p>
                 </div>
 
-                {/* Overall NPS */}
                 <div style={{background:WHITE,border:`1px solid ${BORDER}`,borderRadius:12,padding:'20px 24px',marginBottom:20,boxShadow:'0 1px 4px rgba(0,0,0,0.04)',display:'flex',alignItems:'center',gap:32}}>
                   <div>
                     <div style={{fontSize:11,fontWeight:600,color:GOLD,textTransform:'uppercase',letterSpacing:'0.1em',marginBottom:6}}>Overall CX NPS</div>
@@ -734,7 +715,6 @@ export default function DashboardPage() {
                   </div>
                 </div>
 
-                {/* Theme cards */}
                 <p style={{fontSize:11,fontWeight:600,color:BODY_TEXT,textTransform:'uppercase',letterSpacing:'0.12em',marginBottom:12}}>CX by theme</p>
                 <div style={{display:'grid',gridTemplateColumns:'repeat(5,1fr)',gap:12,marginBottom:24}}>
                   {CX_THEMES.map(theme => {
@@ -753,12 +733,8 @@ export default function DashboardPage() {
                               <div style={{width:6,height:6,borderRadius:'50%',background:sentimentDot(t.sentiment),flexShrink:0}}/>
                               <span style={{fontSize:10,color:BODY_TEXT,textTransform:'capitalize'}}>{t.sentiment}</span>
                             </div>
-                            {t.dropout_rate !== null && (
-                              <div style={{fontSize:10,color:t.dropout_rate > 20 ? RED : BODY_TEXT}}>{t.dropout_rate}% drop-off</div>
-                            )}
-                            {t.top_concern && (
-                              <div style={{fontSize:10,color:'#aaa',marginTop:4,lineHeight:1.4,borderTop:`1px solid ${BORDER}`,paddingTop:6}}>{t.top_concern}</div>
-                            )}
+                            {t.dropout_rate !== null && <div style={{fontSize:10,color:t.dropout_rate > 20 ? RED : BODY_TEXT}}>{t.dropout_rate}% drop-off</div>}
+                            {t.top_concern && <div style={{fontSize:10,color:'#aaa',marginTop:4,lineHeight:1.4,borderTop:`1px solid ${BORDER}`,paddingTop:6}}>{t.top_concern}</div>}
                           </>
                         )}
                         {!t && <div style={{fontSize:10,color:'#bbb'}}>No data yet</div>}
@@ -772,13 +748,22 @@ export default function DashboardPage() {
                   <div style={{background:WHITE,border:`1px solid ${BORDER}`,borderRadius:12,padding:'20px 24px',marginBottom:24,boxShadow:'0 1px 4px rgba(0,0,0,0.04)'}}>
                     <div style={{fontSize:11,fontWeight:600,color:BODY_TEXT,textTransform:'uppercase',letterSpacing:'0.1em',marginBottom:14}}>Consumer signal keywords — across all CX themes</div>
                     <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:16}}>
-                      {eyePosUnique && (
-                        <WordCloud keywords={eyePosUnique} color={GREEN} label="What customers love" />
-                      )}
-                      {eyeNegUnique && (
-                        <WordCloud keywords={eyeNegUnique} color={RED} label="What customers complain about" />
-                      )}
+                      {eyePosUnique && <WordCloud keywords={eyePosUnique} color={GREEN} label="What customers love" />}
+                      {eyeNegUnique && <WordCloud keywords={eyeNegUnique} color={RED} label="What customers complain about" />}
                     </div>
+                  </div>
+                )}
+
+                {/* Eye Report download banner */}
+                {brand?.eye_report_ready && (
+                  <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'14px 20px',background:'rgba(31,74,47,0.06)',border:'1px solid rgba(31,74,47,0.25)',borderRadius:10,marginBottom:20}}>
+                    <div>
+                      <div style={{fontSize:13,fontWeight:600,color:DARK,marginBottom:2}}>Your Eye report is ready</div>
+                      <div style={{fontSize:12,color:BODY_TEXT}}>Download your full CX audit report as a PDF.</div>
+                    </div>
+                    <a href="/report/eye" target="_blank" style={{padding:'10px 20px',background:MID_GREEN,color:WHITE,borderRadius:8,fontSize:13,fontWeight:600,textDecoration:'none',whiteSpace:'nowrap'}}>
+                      ⬇ Download Eye Report
+                    </a>
                   </div>
                 )}
 
