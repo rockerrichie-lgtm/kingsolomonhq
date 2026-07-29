@@ -86,6 +86,12 @@ interface CxThemeScore {
   negative_signal_count?: number | null
 }
 
+interface CompetitorThemes {
+  id: string
+  name: string
+  themes: CxThemeScore[]
+}
+
 interface CxVerdict {
   narrative: string | null
   top_priorities: any
@@ -93,10 +99,6 @@ interface CxVerdict {
   mystery_audit_triggered: boolean
 }
 
-const ZONE_LABEL: Record<string, string> = {
-  critical: 'Critical', emerging: 'Emerging', contested: 'Contested',
-  established: 'Established', category_defining: 'Category Defining',
-}
 const ZONE_COLOR: Record<string, string> = {
   critical: RED, emerging: '#E2C97A', contested: AMBER,
   established: GREEN, category_defining: GREEN,
@@ -122,7 +124,7 @@ const KPI_CONFIG: Record<KpiName, {
       { key: 'sub_bucket_found', label: 'Found', desc: 'Consumer searched the category and found the brand — aided discovery proxy' },
       { key: 'sub_bucket_shown', label: 'Shown', desc: 'Brand appeared in consumer feed without being searched — media reach proxy' },
     ],
-    intelligence: (brand, compKpis) => {
+    intelligence: (brand) => {
       const s = brand.sub_bucket_searched ?? 0
       const sh = brand.sub_bucket_shown ?? 0
       if (sh > s + 15) return `Shown (${sh}) is outpacing Searched (${s}) by ${sh - s} points. Media reach is not converting to spontaneous recall. Brand distinctiveness investment needed before media scale.`
@@ -177,7 +179,6 @@ const KPI_CONFIG: Record<KpiName, {
       const neg = brand.sub_bucket_found ?? 0
       if (pos > neg + 20) return `Positive attribute language strongly outpaces negative — brand equity is healthy. Protect and amplify rather than over-engineer messaging.`
       if (neg > pos) return `Negative attribute language exceeds positive — consumer perception is drifting from intended positioning. Communication and product experience need realignment.`
-      if (pos > 40 && neg > 40) return `Both positive and negative attributes are elevated — a polarising brand. Strong advocates and strong critics. Fragile to a single reputational event.`
       return null
     }
   },
@@ -203,27 +204,20 @@ const KPI_CONFIG: Record<KpiName, {
 
 const THEME_INTELLIGENCE: Record<string, (t: CxThemeScore, benchmark: number) => string> = {
   'Customer Service': (t, b) => t.nps_score !== null && t.nps_score < b - 30
-    ? `NPS of ${t.nps_score} vs benchmark ${b} — a ${Math.abs(t.nps_score - b)}-point gap. Post-purchase breakdown is the single largest revenue risk in your CX profile.`
-    : `Customer Service NPS of ${t.nps_score} is within range of benchmark ${b}.`,
+    ? `Score of ${t.nps_score} vs benchmark ${b} — a ${Math.abs(t.nps_score - b)}-point gap. Post-purchase breakdown is the single largest revenue risk in your CX profile.`
+    : `Customer Service score of ${t.nps_score} is within range of benchmark ${b}.`,
   'Pricing': (t, b) => t.nps_score !== null && t.nps_score < 0
-    ? `Negative pricing NPS of ${t.nps_score} indicates a value perception gap. Consumers are not connecting product quality to price point.`
-    : `Pricing NPS of ${t.nps_score} is positive — value perception is intact.`,
+    ? `Negative pricing score of ${t.nps_score} indicates a value perception gap. Consumers are not connecting product quality to price point.`
+    : `Pricing score of ${t.nps_score} is positive — value perception is intact.`,
   'Experience': (t, b) => t.dropout_rate !== null && t.dropout_rate > 30
     ? `Experience dropout at ${t.dropout_rate}% — nearly ${Math.round(t.dropout_rate / 10)} in 10 negative signal authors report abandoning the journey. Fix checkout friction before next campaign.`
     : `Experience dropout at ${t.dropout_rate}% is within acceptable range.`,
   'Collections': (t, b) => t.nps_score !== null && t.nps_score > b
-    ? `Collections NPS of ${t.nps_score} exceeds benchmark ${b} — a brand strength. Range and availability are underutilised acquisition assets.`
-    : `Collections NPS of ${t.nps_score} — ensure range awareness matches availability.`,
+    ? `Collections score of ${t.nps_score} exceeds benchmark ${b} — a brand strength. Range and availability are underutilised acquisition assets.`
+    : `Collections score of ${t.nps_score} — ensure range awareness matches availability.`,
   'Product': (t, b) => t.nps_score !== null && t.nps_score > 0
-    ? `Product NPS of ${t.nps_score} is positive — product quality is a brand strength. Amplify in acquisition messaging.`
-    : `Product NPS of ${t.nps_score} indicates product experience concerns require attention.`,
-}
-
-function mvLabel(m: number | null) {
-  if (m === null) return null
-  if (m > 0) return { text: `↑ +${m}`, color: GREEN }
-  if (m < 0) return { text: `↓ ${m}`, color: RED }
-  return { text: '→', color: AMBER }
+    ? `Product score of ${t.nps_score} is positive — product quality is a brand strength. Amplify in acquisition messaging.`
+    : `Product score of ${t.nps_score} indicates product experience concerns require attention.`,
 }
 
 function npsColor(score: number | null, benchmark: number): string {
@@ -263,9 +257,7 @@ function KpiModal({ kpiName, brandKpi, competitorKpis, competitors, brandName, o
 }) {
   const cfg = KPI_CONFIG[kpiName]
   const intel = brandKpi ? cfg.intelligence(brandKpi, competitorKpis, competitors) : null
-
   const getCompKpi = (cId: string) => competitorKpis.find(k => k.competitor_id === cId && k.kpi_name === kpiName)
-
   const allBrands = [
     { name: brandName, kpi: brandKpi, you: true },
     ...competitors.map(c => ({ name: c.name, kpi: getCompKpi(c.id), you: false }))
@@ -275,7 +267,6 @@ function KpiModal({ kpiName, brandKpi, competitorKpis, competitors, brandName, o
   return (
     <div onClick={onClose} style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.5)',zIndex:200,display:'flex',alignItems:'center',justifyContent:'center',padding:24}}>
       <div onClick={e => e.stopPropagation()} style={{background:WHITE,borderRadius:16,width:'100%',maxWidth:640,maxHeight:'85vh',overflowY:'auto',boxShadow:'0 20px 60px rgba(0,0,0,0.3)'}}>
-        {/* Header */}
         <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'18px 24px',borderBottom:`1px solid ${BORDER}`}}>
           <div>
             <div style={{fontSize:9,fontWeight:700,color:GOLD,textTransform:'uppercase',letterSpacing:'0.15em',marginBottom:3}}>{cfg.label}</div>
@@ -283,9 +274,7 @@ function KpiModal({ kpiName, brandKpi, competitorKpis, competitors, brandName, o
           </div>
           <button onClick={onClose} style={{background:'none',border:'none',fontSize:20,cursor:'pointer',color:'#aaa',padding:'4px 8px'}}>×</button>
         </div>
-
         <div style={{padding:'20px 24px'}}>
-          {/* Sub-bucket competitive bars */}
           {cfg.subBuckets.map((sb, si) => {
             const brandVal = brandKpi ? (brandKpi as any)[sb.key] ?? brandKpi.score : null
             return (
@@ -308,7 +297,7 @@ function KpiModal({ kpiName, brandKpi, competitorKpis, competitors, brandName, o
                         {b.name}{b.you && <span style={{color:GOLD,fontSize:9,marginLeft:4}}>you</span>}
                       </div>
                       <div style={{flex:1,height:5,background:'#f0f0f0',borderRadius:3,overflow:'hidden'}}>
-                        <div style={{height:'100%',width:`${val !== null ? Math.min((val/maxVal)*100, 100) : 0}%`,background:b.you?GOLD:ahead?RED:behind?GREEN:'#ccc',borderRadius:3,transition:'width 0.3s'}}/>
+                        <div style={{height:'100%',width:`${val !== null ? Math.min((val/maxVal)*100, 100) : 0}%`,background:b.you?GOLD:ahead?RED:behind?GREEN:'#ccc',borderRadius:3}}/>
                       </div>
                       <div style={{width:28,textAlign:'right',fontSize:12,fontWeight:b.you?700:400,color:b.you?DARK:ahead?RED:behind?GREEN:'#aaa'}}>
                         {val !== null ? val : '--'}
@@ -323,16 +312,12 @@ function KpiModal({ kpiName, brandKpi, competitorKpis, competitors, brandName, o
               </div>
             )
           })}
-
-          {/* Word clouds for Buzz */}
           {kpiName === 'buzz' && brandKpi && (brandKpi.positive_keywords || brandKpi.negative_keywords) && (
             <div style={{marginTop:20,display:'grid',gridTemplateColumns:'1fr 1fr',gap:12}}>
               {brandKpi.positive_keywords && <WordCloud keywords={brandKpi.positive_keywords} color={GREEN} label="Praising keywords" />}
               {brandKpi.negative_keywords && <WordCloud keywords={brandKpi.negative_keywords} color={RED} label="Attacking keywords" />}
             </div>
           )}
-
-          {/* Intelligence signal */}
           {intel && (
             <div style={{marginTop:20,padding:'12px 16px',background:'rgba(201,168,76,0.06)',border:`1px solid rgba(201,168,76,0.25)`,borderRadius:8,borderLeft:`3px solid ${GOLD}`}}>
               <div style={{fontSize:9,fontWeight:700,color:GOLD,textTransform:'uppercase',letterSpacing:'0.1em',marginBottom:5}}>Intelligence signal</div>
@@ -346,10 +331,10 @@ function KpiModal({ kpiName, brandKpi, competitorKpis, competitors, brandName, o
 }
 
 // ── Eye Theme Modal ────────────────────────────────────────────────────────────
-function EyeThemeModal({ theme, themeData, allThemes, onClose, benchmark }: {
+function EyeThemeModal({ theme, themeData, competitorThemes, onClose, benchmark }: {
   theme: string
   themeData: CxThemeScore
-  allThemes: CxThemeScore[]
+  competitorThemes: CompetitorThemes[]
   onClose: () => void
   benchmark: number
 }) {
@@ -359,6 +344,16 @@ function EyeThemeModal({ theme, themeData, allThemes, onClose, benchmark }: {
   const total = pos + neg
   const posPct = total > 0 ? Math.round(pos/total*100) : 0
   const intel = THEME_INTELLIGENCE[theme]?.(themeData, benchmark) ?? ''
+
+  const allBrands = [
+    { name: 'Your brand', score: themeData.nps_score, you: true },
+    ...competitorThemes.map(c => ({
+      name: c.name,
+      score: c.themes.find(t => t.theme === theme)?.nps_score ?? null,
+      you: false,
+    }))
+  ]
+  const maxAbs = Math.max(...allBrands.map(b => Math.abs(b.score ?? 0)), 60)
 
   return (
     <div onClick={onClose} style={{position:'fixed',inset:0,background:'rgba(0,0,0,0.5)',zIndex:200,display:'flex',alignItems:'center',justifyContent:'center',padding:24}}>
@@ -374,7 +369,7 @@ function EyeThemeModal({ theme, themeData, allThemes, onClose, benchmark }: {
           {/* Score cards */}
           <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:8,marginBottom:20}}>
             {[
-              {label:'Theme NPS', val: themeData.nps_score !== null ? (themeData.nps_score > 0 ? `+${themeData.nps_score}` : String(themeData.nps_score)) : '--', color},
+              {label:'Theme score', val: themeData.nps_score !== null ? (themeData.nps_score > 0 ? `+${themeData.nps_score}` : String(themeData.nps_score)) : '--', color},
               {label:'Benchmark', val: String(benchmark), color:'#aaa'},
               {label:'Signals', val: String(themeData.signal_count ?? '--'), color:DARK},
               {label:'Drop-off', val: themeData.dropout_rate !== null ? `${themeData.dropout_rate}%` : '--', color: (themeData.dropout_rate ?? 0) > 30 ? RED : GREEN},
@@ -385,6 +380,44 @@ function EyeThemeModal({ theme, themeData, allThemes, onClose, benchmark }: {
               </div>
             ))}
           </div>
+
+          {/* Brand vs competition bars */}
+          {allBrands.length > 1 && (
+            <div style={{marginBottom:16}}>
+              <div style={{fontSize:9,fontWeight:600,color:'#aaa',textTransform:'uppercase',letterSpacing:'0.1em',marginBottom:10}}>Brand vs competition — {theme} score</div>
+              {allBrands.map(b => {
+                const val = b.score
+                const diff = !b.you && val !== null && themeData.nps_score !== null ? val - themeData.nps_score : null
+                const ahead = diff !== null && diff >= 8
+                const behind = diff !== null && diff <= -8
+                const barColor = b.you ? GOLD : ahead ? RED : behind ? GREEN : '#ccc'
+                const widthPct = val !== null ? Math.round((Math.abs(val) / (maxAbs * 2)) * 100) : 0
+                const leftPct = val !== null && val >= 0 ? 50 : val !== null ? Math.round((val + maxAbs) / (maxAbs * 2) * 100) : 50
+                return (
+                  <div key={b.name} style={{display:'flex',alignItems:'center',gap:10,marginBottom:8}}>
+                    <div style={{width:90,fontSize:11,color:b.you?DARK:BODY_TEXT,fontWeight:b.you?600:400,flexShrink:0}}>
+                      {b.name}{b.you && <span style={{color:GOLD,fontSize:9,marginLeft:4}}>you</span>}
+                    </div>
+                    <div style={{flex:1,height:6,background:'#f0f0f0',borderRadius:3,overflow:'hidden',position:'relative'}}>
+                      <div style={{position:'absolute',left:'50%',top:0,width:1,height:'100%',background:'#ddd'}}/>
+                      <div style={{position:'absolute',left:`${leftPct}%`,width:`${widthPct}%`,height:'100%',background:barColor,borderRadius:3}}/>
+                    </div>
+                    <div style={{width:32,textAlign:'right',fontSize:12,fontWeight:b.you?700:400,color:barColor}}>
+                      {val !== null ? (val > 0 ? `+${val}` : String(val)) : '--'}
+                    </div>
+                    <div style={{width:56,fontSize:9,color:ahead?RED:behind?GREEN:'#bbb'}}>
+                      {ahead ? `+${diff} ahead` : behind ? `${diff} behind` : diff !== null ? 'in range' : ''}
+                    </div>
+                  </div>
+                )
+              })}
+              <div style={{display:'flex',gap:16,fontSize:9,color:'#aaa',marginTop:6}}>
+                <span style={{color:RED}}>Red — competitor leads</span>
+                <span style={{color:GREEN}}>Green — you lead</span>
+                <span>MMD: 8 pts</span>
+              </div>
+            </div>
+          )}
 
           {/* Signal breakdown */}
           {total > 0 && (
@@ -443,16 +476,15 @@ function EyeOverallModal({ audit, themes, onClose }: {
       <div onClick={e => e.stopPropagation()} style={{background:WHITE,borderRadius:16,width:'100%',maxWidth:600,maxHeight:'85vh',overflowY:'auto',boxShadow:'0 20px 60px rgba(0,0,0,0.3)'}}>
         <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'18px 24px',borderBottom:`1px solid ${BORDER}`,borderTop:`3px solid ${MID_GREEN}`,borderRadius:'16px 16px 0 0'}}>
           <div>
-            <div style={{fontSize:9,fontWeight:700,color:GOLD,textTransform:'uppercase',letterSpacing:'0.15em',marginBottom:3}}>Overall CX NPS</div>
+            <div style={{fontSize:9,fontWeight:700,color:GOLD,textTransform:'uppercase',letterSpacing:'0.15em',marginBottom:3}}>Overall CX Score</div>
             <div style={{fontSize:12,color:BODY_TEXT}}>Brand customer experience vs benchmark</div>
           </div>
           <button onClick={onClose} style={{background:'none',border:'none',fontSize:20,cursor:'pointer',color:'#aaa',padding:'4px 8px'}}>×</button>
         </div>
-
         <div style={{padding:'20px 24px'}}>
           <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:10,marginBottom:20}}>
             {[
-              {label:'Overall CX NPS', val:npsStr(audit.overall_cx_nps), color},
+              {label:'Overall CX Score', val:npsStr(audit.overall_cx_nps), color},
               {label:'Benchmark', val:String(audit.benchmark), color:'#aaa'},
               {label:'Total signals', val:audit.total_signals?.toLocaleString() ?? '--', color:DARK},
             ].map(f => (
@@ -463,14 +495,13 @@ function EyeOverallModal({ audit, themes, onClose }: {
             ))}
           </div>
 
-          {/* CX theme table */}
-          <div style={{fontSize:9,fontWeight:600,color:'#aaa',textTransform:'uppercase',letterSpacing:'0.1em',marginBottom:10}}>NPS by theme</div>
+          <div style={{fontSize:9,fontWeight:600,color:'#aaa',textTransform:'uppercase',letterSpacing:'0.1em',marginBottom:10}}>Score by theme</div>
           <div style={{background:'#f9f9f9',borderRadius:8,overflow:'hidden',marginBottom:16}}>
             <table style={{width:'100%',borderCollapse:'collapse',fontSize:12}}>
               <thead>
                 <tr style={{background:MID_GREEN}}>
                   <th style={{textAlign:'left',padding:'8px 14px',color:WHITE,fontSize:10,fontWeight:600}}>Theme</th>
-                  <th style={{textAlign:'center',padding:'8px 10px',color:WHITE,fontSize:10,fontWeight:600}}>NPS</th>
+                  <th style={{textAlign:'center',padding:'8px 10px',color:WHITE,fontSize:10,fontWeight:600}}>Score</th>
                   <th style={{textAlign:'center',padding:'8px 10px',color:WHITE,fontSize:10,fontWeight:600}}>Benchmark</th>
                   <th style={{textAlign:'center',padding:'8px 10px',color:WHITE,fontSize:10,fontWeight:600}}>Gap</th>
                   <th style={{textAlign:'center',padding:'8px 10px',color:WHITE,fontSize:10,fontWeight:600}}>Signals</th>
@@ -497,8 +528,8 @@ function EyeOverallModal({ audit, themes, onClose }: {
           <div style={{padding:'12px 14px',background:'rgba(31,74,47,0.06)',border:'1px solid rgba(31,74,47,0.2)',borderRadius:8,borderLeft:`3px solid ${MID_GREEN}`}}>
             <div style={{fontSize:9,fontWeight:600,color:MID_GREEN,textTransform:'uppercase',letterSpacing:'0.1em',marginBottom:4}}>Intelligence signal</div>
             <div style={{fontSize:12,color:DARK,lineHeight:1.65}}>
-              {themes.sort((a,b) => (a.nps_score ?? 0) - (b.nps_score ?? 0))[0]?.theme} is the primary drag on overall CX NPS.
-              {' '}Resolving the top negative theme could shift overall NPS by 10-20 points in the next audit cycle.
+              {themes.sort((a,b) => (a.nps_score ?? 0) - (b.nps_score ?? 0))[0]?.theme} is the primary drag on overall CX score.
+              {' '}Resolving the top negative theme could shift the overall score by 10-20 points in the next audit cycle.
             </div>
           </div>
         </div>
@@ -523,6 +554,7 @@ export default function DashboardPage() {
   const [cxAudit, setCxAudit] = useState<CxAudit | null>(null)
   const [cxThemes, setCxThemes] = useState<CxThemeScore[]>([])
   const [cxVerdict, setCxVerdict] = useState<CxVerdict | null>(null)
+  const [competitorThemes, setCompetitorThemes] = useState<CompetitorThemes[]>([])
   const [activeModal, setActiveModal] = useState<KpiName | null>(null)
   const [activeThemeModal, setActiveThemeModal] = useState<string | null>(null)
   const [showOverallModal, setShowOverallModal] = useState(false)
@@ -554,20 +586,38 @@ export default function DashboardPage() {
     if (data) setVerdict(data)
   }
 
-  const fetchEyeData = async (brandId: string, userId: string) => {
+  const fetchEyeData = async (brandId: string, userId: string, comps: Competitor[]) => {
     const { data: order } = await supabase.from('orders').select('id').eq('user_id', userId).eq('product', 'eye').eq('status', 'paid').maybeSingle()
     if (order) {
       setEyePaid(true)
       const { data: audit } = await supabase.from('cx_audits').select('id,audit_date,overall_cx_nps,total_signals,benchmark,category_type,status,audit_type')
-        .eq('brand_id', brandId).eq('status', 'published').order('created_at', { ascending: false }).limit(1).maybeSingle()
+        .eq('brand_id', brandId).eq('status', 'published').is('competitor_id', null)
+        .order('created_at', { ascending: false }).limit(1).maybeSingle()
       if (audit) {
         setCxAudit(audit)
         const { data: themes } = await supabase.from('cx_theme_scores')
           .select('theme,nps_score,signal_count,dropout_rate,top_concern,sentiment,confidence,positive_keywords,negative_keywords,positive_signal_count,negative_signal_count')
-          .eq('audit_id', audit.id)
+          .eq('audit_id', audit.id).is('competitor_id', null)
         if (themes) setCxThemes(themes)
         const { data: cv } = await supabase.from('cx_verdicts').select('narrative,top_priorities,recommended_actions,mystery_audit_triggered').eq('audit_id', audit.id).maybeSingle()
         if (cv) setCxVerdict(cv)
+
+        // Fetch competitor Eye theme scores
+        const compThemeData: CompetitorThemes[] = []
+        for (const comp of comps) {
+          const { data: compAudit } = await supabase.from('cx_audits').select('id')
+            .eq('brand_id', brandId).eq('competitor_id', comp.id).eq('status', 'published')
+            .order('created_at', { ascending: false }).limit(1).maybeSingle()
+          if (compAudit) {
+            const { data: compThemes } = await supabase.from('cx_theme_scores')
+              .select('theme,nps_score,signal_count,dropout_rate,sentiment,top_concern,positive_keywords,negative_keywords,positive_signal_count,negative_signal_count')
+              .eq('audit_id', compAudit.id).eq('competitor_id', comp.id)
+            if (compThemes && compThemes.length > 0) {
+              compThemeData.push({ id: comp.id, name: comp.name, themes: compThemes as CxThemeScore[] })
+            }
+          }
+        }
+        setCompetitorThemes(compThemeData)
       }
     }
   }
@@ -580,14 +630,20 @@ export default function DashboardPage() {
       const { data: brands } = await supabase.from('brands').select('*').eq('user_id', user.id).maybeSingle()
       if (!brands) { router.push('/brand-setup'); return }
       setBrand(brands)
-      await Promise.all([fetchKpis(brands.id, 'current'), fetchCompetitors(brands.id), fetchVerdict(brands.id), fetchEyeData(brands.id, user.id)])
+      const { data: compsData } = await supabase.from('competitors').select('id,name').eq('brand_id', brands.id).order('name')
+      const comps = compsData ?? []
+      setCompetitors(comps)
+      await Promise.all([
+        fetchKpis(brands.id, 'current'),
+        fetchVerdict(brands.id),
+        fetchEyeData(brands.id, user.id, comps),
+      ])
       setLoading(false)
     }
     init()
   }, [])
 
   const getBrandKpi = (name: KpiName) => brandKpis.find(k => k.kpi_name === name)
-  const getCompetitorKpi = (cId: string, kpiName: KpiName) => competitorKpis.find(k => k.competitor_id === cId && k.kpi_name === kpiName)
   const getTheme = (theme: string) => cxThemes.find(t => t.theme === theme)
 
   const buzz = getBrandKpi('buzz')
@@ -621,11 +677,11 @@ export default function DashboardPage() {
           onClose={() => setActiveModal(null)}
         />
       )}
-      {activeThemeModal && cxAudit && (
+      {activeThemeModal && cxAudit && getTheme(activeThemeModal) && (
         <EyeThemeModal
           theme={activeThemeModal}
           themeData={getTheme(activeThemeModal)!}
-          allThemes={cxThemes}
+          competitorThemes={competitorThemes}
           benchmark={cxAudit.benchmark}
           onClose={() => setActiveThemeModal(null)}
         />
@@ -695,7 +751,6 @@ export default function DashboardPage() {
         {activeProduct === 'iq' && (
           <div style={{maxWidth:1100,margin:'0 auto',padding:'28px 32px',width:'100%'}}>
 
-            {/* Source bar */}
             <div style={{display:'flex',alignItems:'center',gap:8,padding:'8px 14px',background:'#f9f9f9',border:`1px solid ${BORDER}`,borderRadius:8,marginBottom:16,fontSize:12,color:BODY_TEXT}}>
               <div style={{width:7,height:7,borderRadius:'50%',background:GREEN,flexShrink:0}}/>
               <span>
@@ -705,7 +760,6 @@ export default function DashboardPage() {
               </span>
             </div>
 
-            {/* Intelligence alerts */}
             {KPI_NAMES.map(kpiName => {
               const kpi = getBrandKpi(kpiName)
               if (!kpi) return null
@@ -723,7 +777,6 @@ export default function DashboardPage() {
               Brand health — {timeWindow === 'current' ? 'Current' : `Last ${timeWindow}`} · Click any card to deep dive
             </div>
 
-            {/* KPI Cards */}
             {brandKpis.length === 0 ? (
               <div style={{background:'#f9f9f9',border:`1px solid ${BORDER}`,borderRadius:12,padding:'40px',textAlign:'center',marginBottom:24}}>
                 <div style={{fontSize:24,marginBottom:12}}>📊</div>
@@ -737,7 +790,7 @@ export default function DashboardPage() {
                   const cfg = KPI_CONFIG[kpiName]
                   return (
                     <div key={kpiName} onClick={() => setActiveModal(kpiName)}
-                      style={{padding:'14px 12px',borderRadius:12,background:WHITE,border:`1px solid ${BORDER}`,borderTop:`3px solid ${kpi ? ZONE_COLOR[kpi.zone] : BORDER}`,boxShadow:'0 1px 4px rgba(0,0,0,0.04)',cursor:'pointer',transition:'border-color 0.15s'}}
+                      style={{padding:'14px 12px',borderRadius:12,background:WHITE,border:`1px solid ${BORDER}`,borderTop:`3px solid ${kpi ? ZONE_COLOR[kpi.zone] : BORDER}`,boxShadow:'0 1px 4px rgba(0,0,0,0.04)',cursor:'pointer'}}
                       onMouseEnter={e => (e.currentTarget.style.borderColor = GOLD)}
                       onMouseLeave={e => (e.currentTarget.style.borderColor = BORDER)}>
                       <div style={{fontSize:9,fontWeight:700,color:GOLD,letterSpacing:'0.15em',textTransform:'uppercase',marginBottom:6}}>{cfg.label}</div>
@@ -775,7 +828,6 @@ export default function DashboardPage() {
               </div>
             )}
 
-            {/* Buzz word clouds */}
             {buzz && (buzz.positive_keywords || buzz.negative_keywords) && (
               <div style={{background:WHITE,border:`1px solid ${BORDER}`,borderRadius:12,padding:'18px 22px',marginBottom:20,boxShadow:'0 1px 4px rgba(0,0,0,0.04)'}}>
                 <div style={{fontSize:10,fontWeight:600,color:'#aaa',textTransform:'uppercase',letterSpacing:'0.1em',marginBottom:12}}>Buzz — consumer signal keywords</div>
@@ -786,7 +838,6 @@ export default function DashboardPage() {
               </div>
             )}
 
-            {/* IQ Report download */}
             {brand?.iq_report_ready && (
               <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'14px 20px',background:'rgba(201,168,76,0.06)',border:'1px solid rgba(201,168,76,0.25)',borderRadius:10,marginBottom:20}}>
                 <div>
@@ -797,7 +848,6 @@ export default function DashboardPage() {
               </div>
             )}
 
-            {/* Verdict */}
             {verdict ? (
               <div style={{background:WHITE,border:`1px solid ${BORDER}`,borderRadius:12,padding:'24px 28px',boxShadow:'0 1px 4px rgba(0,0,0,0.04)'}}>
                 <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:14}}>
@@ -809,7 +859,6 @@ export default function DashboardPage() {
                   <div style={{paddingTop:14,borderTop:`1px solid ${BORDER}`}}>
                     <p style={{fontSize:10,fontWeight:600,color:GOLD,textTransform:'uppercase',letterSpacing:'0.1em',marginBottom:6}}>Recommended action</p>
                     <p style={{fontSize:13,color:DARK,lineHeight:1.5}}>{verdict.recommended_action}</p>
-                    {verdict.recommended_action_window && <p style={{fontSize:11,color:'#aaa',marginTop:4}}>→ {verdict.recommended_action_window}</p>}
                   </div>
                 )}
               </div>
@@ -845,12 +894,11 @@ export default function DashboardPage() {
 
             {eyePaid && cxAudit && (
               <>
-                {/* Summary cards */}
                 <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:12,marginBottom:20}}>
                   <div onClick={() => setShowOverallModal(true)} style={{background:WHITE,border:`1px solid ${BORDER}`,borderRadius:12,padding:'16px 20px',cursor:'pointer',boxShadow:'0 1px 4px rgba(0,0,0,0.04)'}}
                     onMouseEnter={e => (e.currentTarget.style.borderColor = MID_GREEN)}
                     onMouseLeave={e => (e.currentTarget.style.borderColor = BORDER)}>
-                    <div style={{fontSize:9,fontWeight:600,color:MID_GREEN,textTransform:'uppercase',letterSpacing:'0.1em',marginBottom:4}}>Overall CX NPS <span style={{color:'#aaa',fontWeight:400}}>— tap to compare</span></div>
+                    <div style={{fontSize:9,fontWeight:600,color:MID_GREEN,textTransform:'uppercase',letterSpacing:'0.1em',marginBottom:4}}>Overall CX Score <span style={{color:'#aaa',fontWeight:400}}>— tap to compare</span></div>
                     <div style={{fontFamily:'Georgia,serif',fontSize:36,fontWeight:700,color:npsColor(cxAudit.overall_cx_nps,cxAudit.benchmark),lineHeight:1,marginBottom:4}}>
                       {cxAudit.overall_cx_nps !== null ? (cxAudit.overall_cx_nps > 0 ? `+${cxAudit.overall_cx_nps}` : String(cxAudit.overall_cx_nps)) : '--'}
                     </div>
@@ -868,7 +916,6 @@ export default function DashboardPage() {
                   </div>
                 </div>
 
-                {/* Signal distribution */}
                 {totalSig > 0 && (
                   <div style={{background:WHITE,border:`1px solid ${BORDER}`,borderRadius:12,padding:'16px 20px',marginBottom:20,boxShadow:'0 1px 4px rgba(0,0,0,0.04)'}}>
                     <div style={{fontSize:9,fontWeight:600,color:'#aaa',textTransform:'uppercase',letterSpacing:'0.1em',marginBottom:10}}>Signal distribution — negative by theme</div>
@@ -896,7 +943,6 @@ export default function DashboardPage() {
                   </div>
                 )}
 
-                {/* Theme cards */}
                 <div style={{fontSize:10,fontWeight:600,color:'#aaa',textTransform:'uppercase',letterSpacing:'0.12em',marginBottom:10}}>CX themes — tap to deep dive</div>
                 <div style={{display:'grid',gridTemplateColumns:'repeat(5,1fr)',gap:10,marginBottom:20}}>
                   {CX_THEMES.map(theme => {
@@ -914,7 +960,7 @@ export default function DashboardPage() {
                         <div style={{fontFamily:'Georgia,serif',fontSize:24,fontWeight:700,color,marginBottom:2}}>
                           {t?.nps_score !== null && t?.nps_score !== undefined ? (t.nps_score > 0 ? `+${t.nps_score}` : String(t.nps_score)) : '--'}
                         </div>
-                        <div style={{fontSize:9,color:'#aaa',marginBottom:6}}>Theme NPS</div>
+                        <div style={{fontSize:9,color:'#aaa',marginBottom:6}}>Theme score</div>
                         {t && (
                           <>
                             <div style={{display:'flex',alignItems:'center',justifyContent:'center',gap:4,marginBottom:5}}>
@@ -935,7 +981,6 @@ export default function DashboardPage() {
                   })}
                 </div>
 
-                {/* Eye word clouds */}
                 {(eyePosKeywords || eyeNegKeywords) && (
                   <div style={{background:WHITE,border:`1px solid ${BORDER}`,borderRadius:12,padding:'18px 22px',marginBottom:20,boxShadow:'0 1px 4px rgba(0,0,0,0.04)'}}>
                     <div style={{fontSize:10,fontWeight:600,color:'#aaa',textTransform:'uppercase',letterSpacing:'0.1em',marginBottom:12}}>Consumer signal keywords — all CX themes</div>
@@ -946,7 +991,6 @@ export default function DashboardPage() {
                   </div>
                 )}
 
-                {/* Eye report download */}
                 {brand?.eye_report_ready && (
                   <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'14px 20px',background:'rgba(31,74,47,0.06)',border:'1px solid rgba(31,74,47,0.25)',borderRadius:10,marginBottom:20}}>
                     <div>
@@ -957,7 +1001,6 @@ export default function DashboardPage() {
                   </div>
                 )}
 
-                {/* Eye verdict */}
                 {cxVerdict?.narrative ? (
                   <div style={{background:WHITE,border:`1px solid ${BORDER}`,borderRadius:12,padding:'24px 28px',boxShadow:'0 1px 4px rgba(0,0,0,0.04)'}}>
                     <span style={{fontSize:10,fontWeight:700,color:GOLD,textTransform:'uppercase',letterSpacing:'0.1em'}}>👁 Solomon&apos;s Eye Verdict</span>
