@@ -1,5 +1,5 @@
 """
-Solomon's IQ + Eye — Data Scraper v3
+Solomon's IQ + Eye — Data Scraper v4
 Pulls real brand signals from multiple sources.
 Writes to Supabase with status = pending_review.
 Requires JR approval in /admin before customer sees data.
@@ -12,12 +12,14 @@ Sources:
   - Apple App Store reviews
   - Google News RSS
 
-KPIs — sub-bucket architecture v3:
-  Awareness:     Searched / Found / Shown (3 separate indices)
-  Consideration: Comparing / Trialling / Interested (proximity-filtered)
-  Usage:         Repeat / Switchers (diagnostic) / Lost
-  Imagery:       Positive attributes / Negative attributes / Net
-  Buzz:          Praising / Questioning / Attacking + Net
+KPIs:
+  IQ  — Awareness, Consideration, Usage, Imagery, Buzz
+  Eye — Product, Experience, Customer Service, Pricing, Collections
+
+New in v4:
+  - Competitor Eye CX scraping — same classifier runs on competitor reviews
+  - Competitor Eye data stored with competitor_id in cx_theme_scores
+  - Dashboard can now show brand vs competitor on every Eye theme
 
 Run: py scraper.py
 """
@@ -95,20 +97,6 @@ def extract_keywords(texts: list, top_n: int = 10) -> str:
     filtered = [w for w in all_words if len(w) > 3 and w not in STOP_WORDS]
     most_common = Counter(filtered).most_common(top_n)
     return ", ".join([w for w, _ in most_common])
-
-# ─── Proximity filter for intent signals ──────────────────────────────────────
-
-def proximity_match(text: str, brand: str, intent_words: list, window: int = 10) -> bool:
-    text_lower = text.lower()
-    brand_lower = brand.lower()
-    words = text_lower.split()
-    for i, w in enumerate(words):
-        if brand_lower in w:
-            surrounding = words[max(0, i - window):i + window]
-            surrounding_text = " ".join(surrounding)
-            if any(intent in surrounding_text for intent in intent_words):
-                return True
-    return False
 
 # ─── Sentiment lexicon ─────────────────────────────────────────────────────────
 
@@ -383,7 +371,7 @@ def fetch_google_play_reviews(brand: str, geo: str = "IN") -> list:
         print(f"  [Google Play] {brand}: {len(texts)} reviews (app: {app_id})")
         return texts
     except ImportError:
-        print("  [Google Play] Not installed. Run: pip install google-play-scraper")
+        print("  [Google Play] Not installed.")
         return []
     except Exception as e:
         print(f"  [Google Play] Error: {e}")
@@ -440,7 +428,7 @@ def fetch_google_alerts_rss(brand: str, geo: str = "IN") -> list:
         print(f"  [Google News RSS] Error: {e}")
         return []
 
-# ─── IQ KPI Classifier v3 — full sub-bucket architecture ──────────────────────
+# ─── IQ KPI Classifier ─────────────────────────────────────────────────────────
 
 def compute_iq_kpis(brand, trends_awareness, trends_consideration, social_signals,
                     trustpilot_texts, amazon_texts, news_texts, play_texts, appstore_texts, alerts_texts):
@@ -460,83 +448,35 @@ def compute_iq_kpis(brand, trends_awareness, trends_consideration, social_signal
     )
     news_and_alerts = news_texts + alerts_texts
 
-    # ── AWARENESS — three separate indices ──────────────────────────────────────
-    # Searched = Google Trends brand search share (spontaneous recall proxy)
-    searched_score = round(clamp(trends_awareness["score"], 0, 100))
-
-    # Found = web mention volume (aided discovery proxy)
-    web_texts = social_signals.get("web", [])
-    found_score = round(clamp(len(web_texts) * 3, 0, 100))
-
-    # Shown = social post volume across all platforms (feed presence proxy)
-    social_post_count = sum(len(v) for platform, v in social_signals.items() if platform != "web")
-    shown_score = round(clamp(social_post_count * 1.5, 0, 100))
-
-    # Combined awareness for backward compatibility
     social_mention_count = sum(len(v) for v in social_signals.values())
+    social_mention_score = clamp(social_mention_count * 2, 0, 40)
     awareness_score = round(clamp(
-        searched_score * 0.5 + found_score * 0.35 + shown_score * 0.15,
+        trends_awareness["score"] * 0.6 +
+        social_mention_score * 0.2 +
+        (min(len(news_and_alerts) * 2, 20)) * 0.2,
         0, 100
     ))
 
-    # ── CONSIDERATION — proximity-filtered sub-indices ───────────────────────────
-    consideration_texts = (
-        social_signals.get("twitter", []) +
-        social_signals.get("reddit", []) +
-        social_signals.get("web", [])
-    )
-
-    comparing_signals = [t for t in consideration_texts if
-        proximity_match(t, brand, ["vs", "versus", "or ", "better than", "worse than", "alternative", "compare", "which one", "difference between"])]
-    trialling_signals = [t for t in consideration_texts if
-        proximity_match(t, brand, ["tried", "testing", "sample", "first time", "just bought", "just ordered", "first purchase", "gave it a try", "trying out"])]
-    interested_signals = [t for t in consideration_texts if
-        proximity_match(t, brand, ["want to try", "thinking of", "planning to buy", "should i", "worth it", "is it good", "heard about", "considering"])]
-
-    total_consideration_signals = max(len(comparing_signals) + len(trialling_signals) + len(interested_signals), 1)
-    comparing_score  = round(clamp(len(comparing_signals)  / total_consideration_signals * 100, 0, 100))
-    trialling_score  = round(clamp(len(trialling_signals)  / total_consideration_signals * 100, 0, 100))
-    interested_score = round(clamp(len(interested_signals) / total_consideration_signals * 100, 0, 100))
-
-    intent_total = len(comparing_signals) + len(trialling_signals) + len(interested_signals)
-    intent_score = clamp(intent_total * 3, 0, 40)
+    consideration_texts = social_signals.get("twitter", []) + social_signals.get("reddit", [])
+    intent_signals = [t for t in consideration_texts if
+        any(w in t.lower() for w in ["vs","versus","compare","better","review","price","buy","worth","should i"])]
+    intent_score = clamp(len(intent_signals) * 3, 0, 40)
     consideration_score = round(clamp(trends_consideration["score"] * 0.6 + intent_score * 0.4, 0, 100))
 
-    # ── USAGE — three sub-indices ────────────────────────────────────────────────
     all_usage = review_texts + [t for t in social_texts if any(w in t.lower() for w in list(USAGE_SIGNALS))]
-
-    repeat_signals   = [t for t in all_usage if any(w in t.lower() for w in
-        ["repurchase", "buy again", "reorder", "daily", "weekly", "regularly",
-         "always buy", "loyal", "subscription", "habit", "again and again"])]
-    switcher_signals = [t for t in all_usage if any(w in t.lower() for w in
-        ["switched to", "moved to", "changed from", "used to use",
-         "better than my old", "left for", "replaced", "from competitor"])]
-    lost_signals     = [t for t in all_usage if any(w in t.lower() for w in
-        ["stopped using", "returned", "cancelled", "last time", "never again",
-         "deleted", "unsubscribed", "gave up", "not buying again", "wont buy"])]
-
-    total_usage_classified = max(len(repeat_signals) + len(lost_signals), 1)
-    repeat_score   = round(clamp(len(repeat_signals)   / total_usage_classified * 100, 0, 100))
-    lost_score     = round(clamp(len(lost_signals)     / total_usage_classified * 100, 0, 100))
-    switcher_score = round(clamp(len(switcher_signals) / max(len(all_usage), 1) * 100, 0, 100))
-
     if not all_usage:
         usage_score = 0
         usage_confidence = "unexplained"
     else:
-        sentiments_usage = [simple_sentiment(t) for t in all_usage]
-        avg_s = sum(sentiments_usage) / len(sentiments_usage)
-        # +10 baseline correction for review negativity bias (silent satisfied majority)
-        usage_score = round(clamp(40 + avg_s * 35 + min(15, len(all_usage) / 3) + 10, 0, 100))
-        variance_u = sum((s - avg_s) ** 2 for s in sentiments_usage) / len(sentiments_usage)
-        usage_confidence = classify_confidence(len(all_usage), variance_u)
+        sentiments = [simple_sentiment(t) for t in all_usage]
+        avg_s = sum(sentiments) / len(sentiments)
+        usage_score = round(clamp(40 + avg_s * 35 + min(15, len(all_usage) / 3), 0, 100))
+        variance = sum((s - avg_s) ** 2 for s in sentiments) / len(sentiments)
+        usage_confidence = classify_confidence(len(all_usage), variance)
 
-    # ── IMAGERY — positive / negative / net ──────────────────────────────────────
     if not all_texts:
         imagery_score = 40
         imagery_confidence = "external"
-        imagery_pos_score = 40
-        imagery_neg_score = 40
     else:
         pos_count = neg_count = 0
         for text in all_texts:
@@ -544,40 +484,25 @@ def compute_iq_kpis(brand, trends_awareness, trends_consideration, social_signal
             pos_count += len(words & POSITIVE_IMAGERY)
             neg_count += len(words & NEGATIVE_IMAGERY)
         total_img = pos_count + neg_count
-        imagery_pos_score = round(clamp((pos_count / total_img) * 100, 0, 100)) if total_img > 0 else 50
-        imagery_neg_score = round(clamp((neg_count / total_img) * 100, 0, 100)) if total_img > 0 else 50
         imagery_score = round(clamp((pos_count / total_img) * 80 + 10, 0, 100)) if total_img > 0 else 40
         imagery_confidence = classify_confidence(len(all_texts), 0.3)
 
-    # ── BUZZ — praising / questioning / attacking ─────────────────────────────────
     buzz_texts = social_texts + news_and_alerts
     buzz_positive_keywords = ""
     buzz_negative_keywords = ""
-    praising_score    = 0
-    questioning_score = 0
-    attacking_score   = 0
-
     if not buzz_texts:
         buzz_score = 0
         buzz_confidence = "unexplained"
     else:
-        sentiments_buzz = [simple_sentiment(t) for t in buzz_texts]
-        avg_s_buzz = sum(sentiments_buzz) / len(sentiments_buzz)
-        buzz_score = round(clamp(avg_s_buzz * 100, -100, 100))
-        variance_b = sum((s - avg_s_buzz) ** 2 for s in sentiments_buzz) / len(sentiments_buzz)
-        buzz_confidence = classify_confidence(len(buzz_texts), variance_b)
-
-        praising_texts    = [t for t, s in zip(buzz_texts, sentiments_buzz) if s > 0.3]
-        questioning_texts = [t for t, s in zip(buzz_texts, sentiments_buzz) if -0.1 <= s <= 0.1]
-        attacking_texts   = [t for t, s in zip(buzz_texts, sentiments_buzz) if s < -0.3]
-
-        total_buzz_classified = max(len(praising_texts) + len(questioning_texts) + len(attacking_texts), 1)
-        praising_score    = round(clamp(len(praising_texts)    / total_buzz_classified * 100, 0, 100))
-        questioning_score = round(clamp(len(questioning_texts) / total_buzz_classified * 100, 0, 100))
-        attacking_score   = round(clamp(len(attacking_texts)   / total_buzz_classified * 100, 0, 100))
-
-        buzz_positive_keywords = extract_keywords(praising_texts)
-        buzz_negative_keywords = extract_keywords(attacking_texts)
+        sentiments = [simple_sentiment(t) for t in buzz_texts]
+        avg_s = sum(sentiments) / len(sentiments)
+        buzz_score = round(clamp(avg_s * 100, -100, 100))
+        variance = sum((s - avg_s) ** 2 for s in sentiments) / len(sentiments)
+        buzz_confidence = classify_confidence(len(buzz_texts), variance)
+        pos_buzz_texts = [t for t, s in zip(buzz_texts, sentiments) if s > 0.1]
+        neg_buzz_texts = [t for t, s in zip(buzz_texts, sentiments) if s < -0.1]
+        buzz_positive_keywords = extract_keywords(pos_buzz_texts)
+        buzz_negative_keywords = extract_keywords(neg_buzz_texts)
 
     total_sources = len([s for s in [
         trends_awareness["score"] > 0,
@@ -594,64 +519,11 @@ def compute_iq_kpis(brand, trends_awareness, trends_consideration, social_signal
     ] if s])
 
     return {
-        "awareness": {
-            "score": awareness_score, "zone": score_to_zone(awareness_score),
-            "confidence": trends_awareness["confidence"],
-            "source": f"Google Trends + Social ({social_mention_count} mentions) + Web",
-            "sources_count": total_sources,
-            "positive_keywords": "", "negative_keywords": "",
-            "searched_score": searched_score,
-            "found_score": found_score,
-            "shown_score": shown_score,
-            "sub_bucket_searched": searched_score,
-            "sub_bucket_found": found_score,
-            "sub_bucket_shown": shown_score,
-        },
-        "consideration": {
-            "score": consideration_score, "zone": score_to_zone(consideration_score),
-            "confidence": trends_consideration["confidence"],
-            "source": f"Google Trends intent + {intent_total} proximity-filtered intent signals",
-            "sources_count": total_sources,
-            "positive_keywords": "", "negative_keywords": "",
-            "searched_score": 0, "found_score": 0, "shown_score": 0,
-            "sub_bucket_comparing": comparing_score,
-            "sub_bucket_trialling": trialling_score,
-            "sub_bucket_interested": interested_score,
-        },
-        "usage": {
-            "score": usage_score, "zone": score_to_zone(usage_score),
-            "confidence": usage_confidence,
-            "source": f"Reviews + Social ({len(all_usage)} usage signals)",
-            "sources_count": total_sources,
-            "positive_keywords": "", "negative_keywords": "",
-            "searched_score": 0, "found_score": 0, "shown_score": 0,
-            "sub_bucket_repeat": repeat_score,
-            "sub_bucket_switchers": switcher_score,
-            "sub_bucket_lost": lost_score,
-        },
-        "imagery": {
-            "score": imagery_score, "zone": score_to_zone(imagery_score),
-            "confidence": imagery_confidence,
-            "source": f"NLP attribute analysis over {len(all_texts)} signals",
-            "sources_count": total_sources,
-            "positive_keywords": "", "negative_keywords": "",
-            "searched_score": 0, "found_score": 0, "shown_score": 0,
-            "sub_bucket_searched": imagery_pos_score,
-            "sub_bucket_found": imagery_neg_score,
-            "sub_bucket_shown": 0,
-        },
-        "buzz": {
-            "score": buzz_score, "zone": score_to_zone(buzz_score, is_buzz=True),
-            "confidence": buzz_confidence,
-            "source": f"Social + News sentiment ({len(buzz_texts)} signals)",
-            "sources_count": total_sources,
-            "positive_keywords": buzz_positive_keywords,
-            "negative_keywords": buzz_negative_keywords,
-            "searched_score": 0, "found_score": 0, "shown_score": 0,
-            "sub_bucket_praising": praising_score,
-            "sub_bucket_questioning": questioning_score,
-            "sub_bucket_attacking": attacking_score,
-        },
+        "awareness":     {"score": awareness_score,     "zone": score_to_zone(awareness_score),          "confidence": trends_awareness["confidence"],     "source": f"Google Trends + Social ({social_mention_count} mentions) + News", "sources_count": total_sources, "positive_keywords": "", "negative_keywords": ""},
+        "consideration": {"score": consideration_score, "zone": score_to_zone(consideration_score),      "confidence": trends_consideration["confidence"], "source": f"Google Trends intent + {len(intent_signals)} social intent signals",  "sources_count": total_sources, "positive_keywords": "", "negative_keywords": ""},
+        "usage":         {"score": usage_score,         "zone": score_to_zone(usage_score),              "confidence": usage_confidence,                   "source": f"Reviews + Social experience ({len(all_usage)} signals)",            "sources_count": total_sources, "positive_keywords": "", "negative_keywords": ""},
+        "imagery":       {"score": imagery_score,       "zone": score_to_zone(imagery_score),            "confidence": imagery_confidence,                 "source": f"NLP over {len(all_texts)} signals",                                 "sources_count": total_sources, "positive_keywords": "", "negative_keywords": ""},
+        "buzz":          {"score": buzz_score,          "zone": score_to_zone(buzz_score, is_buzz=True), "confidence": buzz_confidence,                    "source": f"Social + News sentiment ({len(buzz_texts)} signals)",               "sources_count": total_sources, "positive_keywords": buzz_positive_keywords, "negative_keywords": buzz_negative_keywords},
     }
 
 # ─── Eye CX Classifier ─────────────────────────────────────────────────────────
@@ -683,7 +555,6 @@ def compute_eye_themes(brand, play_texts, appstore_texts, trustpilot_texts, amaz
         positive_keywords = extract_keywords(pos_texts)
         negative_keywords = extract_keywords(neg_texts)
         top_concern = ", ".join(negative_keywords.split(", ")[:3]) if negative_keywords else ""
-
         overall_sentiment = "positive" if avg_s > 0.1 else "negative" if avg_s < -0.1 else "neutral"
         dropout_rate = round((detractors / total) * 100, 1) if total > 0 else 0
 
@@ -698,7 +569,7 @@ def compute_eye_themes(brand, play_texts, appstore_texts, trustpilot_texts, amaz
             "positive_signal_count": len(pos_texts),
             "negative_signal_count": len(neg_texts),
         }
-        print(f"  [Eye] {theme}: NPS={nps}, signals={total} (+{len(pos_texts)}/-{len(neg_texts)}), sentiment={overall_sentiment}")
+        print(f"  [Eye] {theme}: score={nps}, signals={total} (+{len(pos_texts)}/-{len(neg_texts)}), sentiment={overall_sentiment}")
 
     return theme_results
 
@@ -728,7 +599,7 @@ def get_previous_score(brand_id: str, kpi_name: str, competitor_id=None):
 
 def write_kpi_snapshot(brand_id, competitor_id, kpi_name, score, zone, confidence,
                        source, snapshot_type, checkpoint, movement, sources_count=0,
-                       positive_keywords="", negative_keywords="", kpi_data=None):
+                       positive_keywords="", negative_keywords=""):
     row = {
         "brand_id": brand_id,
         "competitor_id": competitor_id,
@@ -747,49 +618,50 @@ def write_kpi_snapshot(brand_id, competitor_id, kpi_name, score, zone, confidenc
         "positive_keywords": positive_keywords or None,
         "negative_keywords": negative_keywords or None,
     }
-    # Write sub-bucket values from kpi_data if available
-    if kpi_data:
-        for field in [
-            "sub_bucket_searched", "sub_bucket_found", "sub_bucket_shown",
-            "sub_bucket_comparing", "sub_bucket_trialling", "sub_bucket_interested",
-            "sub_bucket_repeat", "sub_bucket_switchers", "sub_bucket_lost",
-            "sub_bucket_praising", "sub_bucket_questioning", "sub_bucket_attacking",
-            "searched_score", "found_score", "shown_score",
-        ]:
-            if field in kpi_data:
-                row[field] = kpi_data[field]
     try:
         supabase.table("kpi_snapshots").insert(row).execute()
         print(f"  [Supabase] {kpi_name}: {score} ({zone}) → pending_review ✅")
     except Exception as e:
         print(f"  [Supabase] Write error {kpi_name}: {e}")
 
-def write_eye_audit(brand_id, user_id, theme_results):
+def write_eye_audit(brand_id, user_id, theme_results, competitor_id=None):
+    """
+    Writes Eye audit for brand (competitor_id=None) or competitor (competitor_id=uuid).
+    Brand audits go to pending_review — require JR approval.
+    Competitor audits go directly to published — no approval needed.
+    """
     if not theme_results:
         print("  [Eye] No theme data to write.")
         return
     total_signals = sum(v["signal_count"] for v in theme_results.values())
     all_nps = [v["nps_score"] for v in theme_results.values()]
     overall_nps = round(sum(all_nps) / len(all_nps)) if all_nps else 0
+
     try:
-        audit_res = supabase.table("cx_audits").insert({
+        audit_row = {
             "brand_id": brand_id,
-            "user_id": user_id,
             "audit_type": "secondary",
-            "status": "pending_review",
+            "status": "published" if competitor_id else "pending_review",
             "audit_date": datetime.now(timezone.utc).isoformat(),
             "overall_cx_nps": overall_nps,
             "total_signals": total_signals,
             "benchmark": 45,
             "category_type": "LIHI",
-        }).execute()
+        }
+        if competitor_id:
+            audit_row["competitor_id"] = competitor_id
+        else:
+            audit_row["user_id"] = user_id
+
+        audit_res = supabase.table("cx_audits").insert(audit_row).execute()
         audit_id = audit_res.data[0]["id"] if audit_res.data else None
         if not audit_id:
             print("  [Eye] Could not get audit ID.")
             return
+
         theme_rows = []
         for theme, data in theme_results.items():
-            theme_rows.append({
+            row = {
                 "audit_id": audit_id,
                 "brand_id": brand_id,
                 "theme": theme,
@@ -803,9 +675,14 @@ def write_eye_audit(brand_id, user_id, theme_results):
                 "negative_keywords": data.get("negative_keywords") or None,
                 "positive_signal_count": data.get("positive_signal_count", 0),
                 "negative_signal_count": data.get("negative_signal_count", 0),
-            })
+            }
+            if competitor_id:
+                row["competitor_id"] = competitor_id
+            theme_rows.append(row)
+
         supabase.table("cx_theme_scores").insert(theme_rows).execute()
-        print(f"  [Eye] Audit written → pending_review ✅ (overall NPS: {overall_nps}, {total_signals} signals)")
+        label = f"competitor" if competitor_id else "brand"
+        print(f"  [Eye] {label} audit written ✅ (overall score: {overall_nps}, {total_signals} signals)")
     except Exception as e:
         print(f"  [Eye] Write error: {e}")
 
@@ -821,6 +698,7 @@ def run_scraper_for_brand(brand_id: str, brand_name: str, competitors: list,
 
     competitor_names = [c["name"] for c in competitors]
 
+    # ── Step 1: Google Trends ──
     if scrape_iq:
         trends_awareness = fetch_google_trends_awareness(brand_name, competitor_names, geo)
         time.sleep(60)
@@ -830,10 +708,12 @@ def run_scraper_for_brand(brand_id: str, brand_name: str, competitors: list,
         trends_awareness    = {"score": 0, "source": "Skipped", "confidence": "unexplained"}
         trends_consideration = {"score": 0, "source": "Skipped", "confidence": "unexplained"}
 
+    # ── Step 2: Social signals ──
     print(f"\n  [API Direct] Fetching all platforms...")
     social_signals = fetch_all_social_signals(brand_name)
     time.sleep(2)
 
+    # ── Step 3: Reviews and news ──
     print(f"\n  [OpenWeb Ninja] Fetching reviews and news...")
     trustpilot_texts = fetch_trustpilot_reviews(brand_name)
     time.sleep(2)
@@ -842,15 +722,19 @@ def run_scraper_for_brand(brand_id: str, brand_name: str, competitors: list,
     news_texts = fetch_news_mentions(brand_name, geo)
     time.sleep(2)
 
+    # ── Step 4: App stores ──
     play_texts     = fetch_google_play_reviews(brand_name, geo)
     time.sleep(2)
     appstore_texts = fetch_app_store_reviews(brand_name, geo)
     time.sleep(2)
-    alerts_texts   = fetch_google_alerts_rss(brand_name, geo)
+
+    # ── Step 5: Google News RSS ──
+    alerts_texts = fetch_google_alerts_rss(brand_name, geo)
     time.sleep(2)
 
+    # ── Step 6: IQ KPIs + competitor IQ ──
     if scrape_iq:
-        print(f"\n  [IQ Classifier v3] Computing sub-bucket scores...")
+        print(f"\n  [IQ Classifier] Computing KPI scores...")
         kpis = compute_iq_kpis(
             brand=brand_name,
             trends_awareness=trends_awareness,
@@ -874,12 +758,11 @@ def run_scraper_for_brand(brand_id: str, brand_name: str, competitors: list,
                 movement=movement, sources_count=data["sources_count"],
                 positive_keywords=data.get("positive_keywords", ""),
                 negative_keywords=data.get("negative_keywords", ""),
-                kpi_data=data,
             )
 
-        print(f"\n  Scraping {len(competitors)} competitors...")
+        print(f"\n  Scraping {len(competitors)} competitors (IQ)...")
         for comp in competitors:
-            print(f"\n  → {comp['name']}")
+            print(f"\n  → {comp['name']} (IQ)")
             comp_trends = fetch_google_trends_awareness(comp["name"], [brand_name], geo)
             time.sleep(60)
             comp_social = fetch_all_social_signals(comp["name"])
@@ -913,8 +796,9 @@ def run_scraper_for_brand(brand_id: str, brand_name: str, competitors: list,
                     snapshot_type="brand_level", checkpoint="current", movement=movement, sources_count=0,
                 )
 
+    # ── Step 7: Brand Eye CX ──
     if scrape_eye:
-        print(f"\n  [Eye Classifier] Computing CX theme scores...")
+        print(f"\n  [Eye Classifier] Computing brand CX theme scores...")
         theme_results = compute_eye_themes(
             brand=brand_name,
             play_texts=play_texts,
@@ -923,14 +807,45 @@ def run_scraper_for_brand(brand_id: str, brand_name: str, competitors: list,
             amazon_texts=amazon_texts,
             social_reddit=social_signals.get("reddit", []),
         )
-        print(f"\n  [Supabase] Writing Eye audit...")
-        write_eye_audit(brand_id=brand_id, user_id=user_id, theme_results=theme_results)
+        print(f"\n  [Supabase] Writing brand Eye audit...")
+        write_eye_audit(brand_id=brand_id, user_id=user_id, theme_results=theme_results, competitor_id=None)
+
+        # ── Step 8: Competitor Eye CX ──
+        print(f"\n  Scraping {len(competitors)} competitors (Eye CX)...")
+        for comp in competitors:
+            print(f"\n  → {comp['name']} (Eye)")
+            comp_play      = fetch_google_play_reviews(comp["name"], geo)
+            time.sleep(2)
+            comp_appstore  = fetch_app_store_reviews(comp["name"], geo)
+            time.sleep(2)
+            comp_trustpilot = fetch_trustpilot_reviews(comp["name"])
+            time.sleep(2)
+            comp_amazon    = fetch_amazon_reviews(comp["name"], geo)
+            time.sleep(2)
+            comp_reddit    = fetch_api_direct("reddit", comp["name"])
+            time.sleep(2)
+
+            comp_theme_results = compute_eye_themes(
+                brand=comp["name"],
+                play_texts=comp_play,
+                appstore_texts=comp_appstore,
+                trustpilot_texts=comp_trustpilot,
+                amazon_texts=comp_amazon,
+                social_reddit=comp_reddit,
+            )
+            if comp_theme_results:
+                write_eye_audit(
+                    brand_id=brand_id,
+                    user_id=user_id,
+                    theme_results=comp_theme_results,
+                    competitor_id=comp["id"],
+                )
 
     print(f"\n  ✅ {brand_name} complete. Go to /admin → Data approval to review and publish.")
 
 
 def main():
-    print("Solomon Scraper v3 starting...")
+    print("Solomon Scraper v4 starting...")
     print(f"Timestamp: {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M UTC')}")
     print(f"API Direct:    {'✅ configured' if API_DIRECT_KEY else '❌ missing'}")
     print(f"OpenWeb Ninja: {'✅ configured' if OPENWEBNINJA_KEY else '❌ missing'}")
@@ -958,13 +873,12 @@ def main():
         has_iq  = "iq"  in paid_products
         has_eye = "eye" in paid_products
 
-        print(f"\n  [{brand_name}] Products: IQ={'✅' if has_iq else '❌'} | Eye={'✅' if has_eye else '❌'} | Region: {geo} | Type: {category_type}")
+        print(f"\n  [{brand_name}] IQ={'✅' if has_iq else '❌'} | Eye={'✅' if has_eye else '❌'} | Region: {geo} | Type: {category_type}")
 
         if not has_iq and not has_eye:
             print(f"  ⚠️  {brand_name} has no paid products — skipping.")
             continue
 
-        # Fetch all 8 competitors
         comps = supabase.table("competitors").select("id, name").eq("brand_id", brand_id).execute()
         competitors = comps.data or []
 
