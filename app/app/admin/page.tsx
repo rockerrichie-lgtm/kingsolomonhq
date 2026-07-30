@@ -40,12 +40,8 @@ export default function AdminPage() {
   const [kpiInstructions, setKpiInstructions] = useState<Record<string, string>>({})
   const [themeDecisions, setThemeDecisions] = useState<Record<string, Decision>>({})
   const [themeInstructions, setThemeInstructions] = useState<Record<string, string>>({})
-
-  // Verdict state per audit
   const [auditVerdicts, setAuditVerdicts] = useState<Record<string, any>>({})
   const [verdictGenerating, setVerdictGenerating] = useState<Record<string, boolean>>({})
-
-  // CSV upload state
   const [csvText, setCsvText] = useState('')
   const [csvBrandId, setCsvBrandId] = useState('')
   const [csvCheckpoint, setCsvCheckpoint] = useState('current')
@@ -124,6 +120,34 @@ export default function AdminPage() {
   }, {})
   const brandGroups = Object.values(groupedKpis) as any[]
 
+  const rejectFullBatch = async (group: any) => {
+    setLoading(true)
+    setMsg('')
+    for (const kpi of group.kpis) {
+      await fetch(`${SUPABASE_URL}/rest/v1/kpi_snapshots?id=eq.${kpi.id}`, {
+        method: 'PATCH',
+        headers: { ...headers, 'Prefer': 'return=minimal' },
+        body: JSON.stringify({ status: 'rejected', rejection_note: 'Full batch rejected for re-scrape' })
+      })
+    }
+    setMsg('✅ Full IQ batch rejected. Will be re-scraped on next run.')
+    fetchPendingKpis()
+    setLoading(false)
+  }
+
+  const rejectFullAudit = async (audit: any) => {
+    setLoading(true)
+    setMsg('')
+    await fetch(`${SUPABASE_URL}/rest/v1/cx_audits?id=eq.${audit.id}`, {
+      method: 'PATCH',
+      headers: { ...headers, 'Prefer': 'return=minimal' },
+      body: JSON.stringify({ status: 'rejected' })
+    })
+    setMsg('✅ Eye audit rejected. Will be re-scraped on next run.')
+    fetchPendingAudits()
+    setLoading(false)
+  }
+
   const submitBrandDecisions = async (group: any) => {
     setLoading(true)
     setMsg('')
@@ -177,12 +201,7 @@ export default function AdminPage() {
       const res = await fetch('/api/generate-verdict', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          audit,
-          themes,
-          brand_name: getBrandName(audit.brand_id),
-          benchmark: audit.benchmark,
-        })
+        body: JSON.stringify({ audit, themes, brand_name: getBrandName(audit.brand_id), benchmark: audit.benchmark })
       })
       const data = await res.json()
       if (data.success) {
@@ -203,7 +222,6 @@ export default function AdminPage() {
     const verdicts = auditVerdicts[audit.id]
     let approvedCount = 0
     let rejectedCount = 0
-
     for (const theme of themes) {
       const decision = themeDecisions[theme.id]
       if (decision === 'approve') {
@@ -222,7 +240,6 @@ export default function AdminPage() {
         rejectedCount++
       }
     }
-
     if (rejectedCount === 0 && approvedCount > 0) {
       await fetch(`${SUPABASE_URL}/rest/v1/cx_audits?id=eq.${audit.id}`, {
         method: 'PATCH',
@@ -234,7 +251,6 @@ export default function AdminPage() {
         headers: { ...headers, 'Prefer': 'return=minimal' },
         body: JSON.stringify({ eye_report_ready: true })
       })
-      // Save verdict to cx_verdicts table if generated
       if (verdicts?.overall_verdict) {
         await fetch(`${SUPABASE_URL}/rest/v1/cx_verdicts`, {
           method: 'POST',
@@ -521,10 +537,16 @@ export default function AdminPage() {
                         )}
                         <div style={{display:'flex',alignItems:'center',justifyContent:'space-between'}}>
                           <div style={{fontSize:12,color:'#aaa'}}>{group.kpis.filter((k:any)=>kpiDecisions[k.id]==='approve').length} approved · {group.kpis.filter((k:any)=>kpiDecisions[k.id]==='reject').length} flagged · {group.kpis.filter((k:any)=>!kpiDecisions[k.id]).length} undecided</div>
-                          <button onClick={() => { if(!allDecided){setMsg('❌ Please tick or reject every KPI before submitting.');return} if(missingInstructions){setMsg('❌ Please add a re-scrape instruction for every rejected KPI.');return} submitBrandDecisions(group) }} disabled={loading}
-                            style={{padding:'9px 20px',background:allDecided&&!missingInstructions?GOLD:'#e0e0e0',color:allDecided&&!missingInstructions?DEEP:'#aaa',border:'none',borderRadius:8,fontSize:13,fontWeight:600,cursor:allDecided?'pointer':'not-allowed',fontFamily:'Inter,sans-serif'}}>
-                            {loading?'Submitting...':'Submit decisions →'}
-                          </button>
+                          <div style={{display:'flex',gap:8}}>
+                            <button onClick={() => rejectFullBatch(group)} disabled={loading}
+                              style={{padding:'9px 20px',background:'rgba(232,120,120,0.08)',border:'1px solid rgba(232,120,120,0.35)',borderRadius:8,fontSize:13,fontWeight:600,color:'#7a1a1a',cursor:'pointer',fontFamily:'Inter,sans-serif'}}>
+                              Reject scrape
+                            </button>
+                            <button onClick={() => { if(!allDecided){setMsg('❌ Please tick or reject every KPI before submitting.');return} if(missingInstructions){setMsg('❌ Please add a re-scrape instruction for every rejected KPI.');return} submitBrandDecisions(group) }} disabled={loading}
+                              style={{padding:'9px 20px',background:allDecided&&!missingInstructions?GOLD:'#e0e0e0',color:allDecided&&!missingInstructions?DEEP:'#aaa',border:'none',borderRadius:8,fontSize:13,fontWeight:600,cursor:allDecided?'pointer':'not-allowed',fontFamily:'Inter,sans-serif'}}>
+                              {loading?'Submitting...':'Submit decisions →'}
+                            </button>
+                          </div>
                         </div>
                       </div>
                     )
@@ -533,7 +555,7 @@ export default function AdminPage() {
               )}
             </div>
 
-            {/* EYE — with signal distribution + editable verdict */}
+            {/* EYE */}
             <div>
               <div style={{fontSize:11,fontWeight:600,color:MID_GREEN,textTransform:'uppercase',letterSpacing:'0.1em',marginBottom:12}}>Solomon&apos;s Eye — Pending review ({pendingAudits.length})</div>
               {pendingAudits.length === 0 ? (
@@ -547,8 +569,6 @@ export default function AdminPage() {
                     const missingThemeInstructions = rejectedThemes.some(t => !themeInstructions[t.id])
                     const verdicts = auditVerdicts[audit.id]
                     const isGenerating = verdictGenerating[audit.id]
-
-                    // Signal distribution
                     const totalNeg = themes.reduce((s, t) => s + (t.negative_signal_count || 0), 0)
                     const totalPos = themes.reduce((s, t) => s + (t.positive_signal_count || 0), 0)
                     const totalSig = totalPos + totalNeg
@@ -557,7 +577,6 @@ export default function AdminPage() {
                     return (
                       <div key={audit.id} style={{background:WHITE,border:`1px solid ${BORDER}`,borderRadius:12,padding:'20px 24px'}}>
 
-                        {/* Header */}
                         <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:16}}>
                           <div>
                             <span style={{fontSize:15,fontWeight:700,color:DARK}}>{getBrandName(audit.brand_id)}</span>
@@ -566,10 +585,9 @@ export default function AdminPage() {
                           <span style={{fontSize:10,fontWeight:600,padding:'3px 10px',borderRadius:20,background:'rgba(31,74,47,0.1)',color:MID_GREEN}}>Pending review</span>
                         </div>
 
-                        {/* Audit overview */}
                         <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:10,marginBottom:16}}>
                           {[
-                            {label:'Overall CX NPS',val:audit.overall_cx_nps!==null?(audit.overall_cx_nps>0?`+${audit.overall_cx_nps}`:audit.overall_cx_nps):'--'},
+                            {label:'Overall CX Score',val:audit.overall_cx_nps!==null?(audit.overall_cx_nps>0?`+${audit.overall_cx_nps}`:audit.overall_cx_nps):'--'},
                             {label:'Total signals',val:audit.total_signals?.toLocaleString()||'--'},
                             {label:'Audit type',val:audit.audit_type||'--'}
                           ].map(f => (
@@ -580,7 +598,6 @@ export default function AdminPage() {
                           ))}
                         </div>
 
-                        {/* Signal distribution */}
                         {totalSig > 0 && (
                           <div style={{marginBottom:16,background:'#f9f9f9',borderRadius:10,padding:'14px 16px'}}>
                             <div style={{fontSize:11,fontWeight:600,color:BODY_TEXT,textTransform:'uppercase',letterSpacing:'0.1em',marginBottom:10}}>Signal distribution</div>
@@ -588,11 +605,9 @@ export default function AdminPage() {
                               <div style={{fontSize:13,color:GREEN,fontWeight:600}}>✓ {totalPos} positive ({totalSig > 0 ? Math.round(totalPos/totalSig*100) : 0}%)</div>
                               <div style={{fontSize:13,color:RED,fontWeight:600}}>✗ {totalNeg} negative ({totalSig > 0 ? Math.round(totalNeg/totalSig*100) : 0}%)</div>
                             </div>
-                            {/* Stacked bar */}
                             <div style={{height:8,borderRadius:4,background:'#e0e0e0',overflow:'hidden',marginBottom:12}}>
                               <div style={{height:'100%',width:`${totalSig > 0 ? (totalPos/totalSig*100) : 0}%`,background:GREEN,borderRadius:4}}/>
                             </div>
-                            {/* Per-theme negative contribution */}
                             <div style={{fontSize:11,fontWeight:600,color:'#aaa',textTransform:'uppercase',letterSpacing:'0.08em',marginBottom:6}}>Negative signal contribution by theme</div>
                             {sortedByNeg.filter(t => (t.negative_signal_count || 0) > 0).map(t => {
                               const pct = totalNeg > 0 ? Math.round((t.negative_signal_count || 0) / totalNeg * 100) : 0
@@ -611,7 +626,6 @@ export default function AdminPage() {
                           </div>
                         )}
 
-                        {/* CX theme cards */}
                         <div style={{fontSize:11,fontWeight:600,color:BODY_TEXT,textTransform:'uppercase',letterSpacing:'0.1em',marginBottom:10}}>CX themes</div>
                         {themes.length === 0 ? (
                           <div style={{fontSize:13,color:'#aaa',marginBottom:16}}>No theme scores found for this audit.</div>
@@ -642,7 +656,6 @@ export default function AdminPage() {
                           </div>
                         )}
 
-                        {/* Rejection instructions */}
                         {rejectedThemes.length > 0 && (
                           <div style={{marginBottom:16,display:'flex',flexDirection:'column',gap:8}}>
                             {rejectedThemes.map(theme => (
@@ -654,54 +667,32 @@ export default function AdminPage() {
                           </div>
                         )}
 
-                        {/* AI Verdict section */}
                         <div style={{borderTop:`1px solid ${BORDER}`,paddingTop:16,marginBottom:16}}>
                           <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:12}}>
                             <div style={{fontSize:11,fontWeight:600,color:GOLD,textTransform:'uppercase',letterSpacing:'0.1em'}}>Solomon&apos;s Eye Verdict</div>
-                            <button
-                              onClick={() => generateVerdict(audit, themes)}
-                              disabled={isGenerating || themes.length === 0}
-                              style={{padding:'7px 14px',background:isGenerating?'#e0e0e0':MID_GREEN,color:isGenerating?'#aaa':WHITE,border:'none',borderRadius:7,fontSize:12,fontWeight:600,cursor:isGenerating?'not-allowed':'pointer',fontFamily:'Inter,sans-serif'}}
-                            >
+                            <button onClick={() => generateVerdict(audit, themes)} disabled={isGenerating || themes.length === 0}
+                              style={{padding:'7px 14px',background:isGenerating?'#e0e0e0':MID_GREEN,color:isGenerating?'#aaa':WHITE,border:'none',borderRadius:7,fontSize:12,fontWeight:600,cursor:isGenerating?'not-allowed':'pointer',fontFamily:'Inter,sans-serif'}}>
                               {isGenerating ? '⏳ Generating...' : verdicts ? '↻ Regenerate' : '✦ Generate verdict'}
                             </button>
                           </div>
-
                           {verdicts ? (
                             <div style={{display:'flex',flexDirection:'column',gap:10}}>
-                              {/* Per-theme verdicts */}
                               {CX_THEMES.map(themeName => (
                                 verdicts.theme_verdicts?.[themeName] ? (
                                   <div key={themeName} style={{background:'#f9f9f9',borderRadius:8,padding:'12px 14px'}}>
                                     <div style={{fontSize:10,fontWeight:600,color:MID_GREEN,textTransform:'uppercase',letterSpacing:'0.1em',marginBottom:6}}>{themeName}</div>
-                                    <textarea
-                                      value={verdicts.theme_verdicts[themeName]}
-                                      onChange={e => setAuditVerdicts(prev => ({
-                                        ...prev,
-                                        [audit.id]: {
-                                          ...prev[audit.id],
-                                          theme_verdicts: { ...prev[audit.id].theme_verdicts, [themeName]: e.target.value }
-                                        }
-                                      }))}
-                                      rows={2}
-                                      style={{width:'100%',padding:'8px 10px',border:`1px solid ${BORDER}`,borderRadius:6,fontSize:13,color:DARK,fontFamily:'Inter,sans-serif',resize:'vertical',lineHeight:1.6}}
-                                    />
+                                    <textarea value={verdicts.theme_verdicts[themeName]}
+                                      onChange={e => setAuditVerdicts(prev => ({...prev,[audit.id]:{...prev[audit.id],theme_verdicts:{...prev[audit.id].theme_verdicts,[themeName]:e.target.value}}}))}
+                                      rows={2} style={{width:'100%',padding:'8px 10px',border:`1px solid ${BORDER}`,borderRadius:6,fontSize:13,color:DARK,fontFamily:'Inter,sans-serif',resize:'vertical',lineHeight:1.6}}/>
                                   </div>
                                 ) : null
                               ))}
-                              {/* Overall verdict */}
                               {verdicts.overall_verdict && (
                                 <div style={{background:'rgba(201,168,76,0.06)',border:`1px solid rgba(201,168,76,0.2)`,borderRadius:8,padding:'12px 14px'}}>
                                   <div style={{fontSize:10,fontWeight:600,color:GOLD,textTransform:'uppercase',letterSpacing:'0.1em',marginBottom:6}}>Overall Eye Verdict</div>
-                                  <textarea
-                                    value={verdicts.overall_verdict}
-                                    onChange={e => setAuditVerdicts(prev => ({
-                                      ...prev,
-                                      [audit.id]: { ...prev[audit.id], overall_verdict: e.target.value }
-                                    }))}
-                                    rows={3}
-                                    style={{width:'100%',padding:'8px 10px',border:`1px solid rgba(201,168,76,0.3)`,borderRadius:6,fontSize:13,color:DARK,fontFamily:'Georgia,serif',fontStyle:'italic',resize:'vertical',lineHeight:1.7}}
-                                  />
+                                  <textarea value={verdicts.overall_verdict}
+                                    onChange={e => setAuditVerdicts(prev => ({...prev,[audit.id]:{...prev[audit.id],overall_verdict:e.target.value}}))}
+                                    rows={3} style={{width:'100%',padding:'8px 10px',border:`1px solid rgba(201,168,76,0.3)`,borderRadius:6,fontSize:13,color:DARK,fontFamily:'Georgia,serif',fontStyle:'italic',resize:'vertical',lineHeight:1.7}}/>
                                 </div>
                               )}
                             </div>
@@ -712,18 +703,22 @@ export default function AdminPage() {
                           )}
                         </div>
 
-                        {/* Submit */}
                         <div style={{display:'flex',alignItems:'center',justifyContent:'space-between'}}>
                           <div style={{fontSize:12,color:'#aaa'}}>{themes.filter(t=>themeDecisions[t.id]==='approve').length} approved · {themes.filter(t=>themeDecisions[t.id]==='reject').length} flagged · {themes.filter(t=>!themeDecisions[t.id]).length} undecided</div>
-                          <button
-                            onClick={() => {
+                          <div style={{display:'flex',gap:8}}>
+                            <button onClick={() => rejectFullAudit(audit)} disabled={loading}
+                              style={{padding:'9px 20px',background:'rgba(232,120,120,0.08)',border:'1px solid rgba(232,120,120,0.35)',borderRadius:8,fontSize:13,fontWeight:600,color:'#7a1a1a',cursor:'pointer',fontFamily:'Inter,sans-serif'}}>
+                              Reject scrape
+                            </button>
+                            <button onClick={() => {
                               if(!allThemesDecided){setMsg('❌ Please tick or reject every CX theme before submitting.');return}
                               if(missingThemeInstructions){setMsg('❌ Please add a re-scrape instruction for every rejected theme.');return}
                               submitAuditDecisions(audit)
-                            }}
-                            disabled={loading}
-                            style={{padding:'9px 20px',background:allThemesDecided&&!missingThemeInstructions?GOLD:'#e0e0e0',color:allThemesDecided&&!missingThemeInstructions?DEEP:'#aaa',border:'none',borderRadius:8,fontSize:13,fontWeight:600,cursor:allThemesDecided?'pointer':'not-allowed',fontFamily:'Inter,sans-serif'}}
-                          >{loading?'Submitting...':'Submit decisions →'}</button>
+                            }} disabled={loading}
+                              style={{padding:'9px 20px',background:allThemesDecided&&!missingThemeInstructions?GOLD:'#e0e0e0',color:allThemesDecided&&!missingThemeInstructions?DEEP:'#aaa',border:'none',borderRadius:8,fontSize:13,fontWeight:600,cursor:allThemesDecided?'pointer':'not-allowed',fontFamily:'Inter,sans-serif'}}>
+                              {loading?'Submitting...':'Submit decisions →'}
+                            </button>
+                          </div>
                         </div>
                       </div>
                     )
@@ -819,44 +814,38 @@ export default function AdminPage() {
                 Click the button below to trigger a fresh data collection run for all brands with paid products. The scraper runs on the cloud — no VS Code needed.
               </p>
               <div style={{display:'flex',gap:12,alignItems:'center',flexWrap:'wrap'}}>
-                <button
-                  onClick={async () => {
-                    setMsg('')
-                    try {
-                      const statusRes = await fetch('https://kingsolomonhq-production.up.railway.app/status')
-                      const statusData = await statusRes.json()
-                      if (statusData.status === 'running') { setMsg('⏳ Scraper is already running. Check back in a few minutes.'); return }
-                      const res = await fetch('https://kingsolomonhq-production.up.railway.app/trigger', { method: 'POST' })
-                      const data = await res.json()
-                      if (data.status === 'started') {
-                        setMsg('✅ Scraper started. Data will appear in Data approval in 5-10 minutes.')
-                      } else {
-                        setMsg(`❌ ${data.message}`)
-                      }
-                    } catch {
-                      setMsg('❌ Could not reach scraper server.')
+                <button onClick={async () => {
+                  setMsg('')
+                  try {
+                    const statusRes = await fetch('https://kingsolomonhq-production.up.railway.app/status')
+                    const statusData = await statusRes.json()
+                    if (statusData.status === 'running') { setMsg('⏳ Scraper is already running. Check back in a few minutes.'); return }
+                    const res = await fetch('https://kingsolomonhq-production.up.railway.app/trigger', { method: 'POST' })
+                    const data = await res.json()
+                    if (data.status === 'started') {
+                      setMsg('✅ Scraper started. Data will appear in Data approval in 5-10 minutes.')
+                    } else {
+                      setMsg(`❌ ${data.message}`)
                     }
-                  }}
-                  style={{padding:'12px 24px',background:DEEP,color:CREAM,border:'none',borderRadius:8,fontSize:14,fontWeight:600,cursor:'pointer',fontFamily:'Inter,sans-serif'}}
-                >▶ Run scraper now</button>
-                <button
-                  onClick={async () => {
-                    try {
-                      const res = await fetch('https://kingsolomonhq-production.up.railway.app/status')
-                      const data = await res.json()
-                      if (data.status === 'running') {
-                        setMsg(`⏳ Scraper is running. Recent log: ${data.log?.slice(-3).join(' | ')}`)
-                      } else if (data.status === 'idle') {
-                        setMsg('✅ Scraper server is online and idle. Ready to run.')
-                      } else {
-                        setMsg('❌ Scraper server is not responding.')
-                      }
-                    } catch {
-                      setMsg('❌ Could not reach scraper server.')
+                  } catch {
+                    setMsg('❌ Could not reach scraper server.')
+                  }
+                }} style={{padding:'12px 24px',background:DEEP,color:CREAM,border:'none',borderRadius:8,fontSize:14,fontWeight:600,cursor:'pointer',fontFamily:'Inter,sans-serif'}}>▶ Run scraper now</button>
+                <button onClick={async () => {
+                  try {
+                    const res = await fetch('https://kingsolomonhq-production.up.railway.app/status')
+                    const data = await res.json()
+                    if (data.status === 'running') {
+                      setMsg(`⏳ Scraper is running. Recent log: ${data.log?.slice(-3).join(' | ')}`)
+                    } else if (data.status === 'idle') {
+                      setMsg('✅ Scraper server is online and idle. Ready to run.')
+                    } else {
+                      setMsg('❌ Scraper server is not responding.')
                     }
-                  }}
-                  style={{padding:'12px 20px',background:'#f5f5f5',color:DARK,border:`1px solid ${BORDER}`,borderRadius:8,fontSize:13,fontWeight:600,cursor:'pointer',fontFamily:'Inter,sans-serif'}}
-                >Check status</button>
+                  } catch {
+                    setMsg('❌ Could not reach scraper server.')
+                  }
+                }} style={{padding:'12px 20px',background:'#f5f5f5',color:DARK,border:`1px solid ${BORDER}`,borderRadius:8,fontSize:13,fontWeight:600,cursor:'pointer',fontFamily:'Inter,sans-serif'}}>Check status</button>
               </div>
             </div>
             <div style={{fontSize:11,fontWeight:600,color:GOLD,textTransform:'uppercase',letterSpacing:'0.1em',marginBottom:12}}>Per-brand instructions</div>
