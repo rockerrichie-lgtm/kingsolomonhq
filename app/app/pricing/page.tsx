@@ -307,6 +307,32 @@ export default function PricingPage() {
         <FAQ activeTab={activeTab} />
       </section>
 
+      {/* What happens after you book */}
+      <section style={{padding:'56px 24px',maxWidth:860,margin:'0 auto'}}>
+        <div style={{textAlign:'center',marginBottom:40}}>
+          <p style={{fontSize:11,fontWeight:600,letterSpacing:'0.18em',textTransform:'uppercase',color:GOLD,marginBottom:12}}>The process</p>
+          <h2 style={{fontFamily:'Playfair Display,serif',fontSize:25,fontWeight:700,color:DARK,marginBottom:12}}>What happens after you book</h2>
+          <p style={{fontSize:15,color:BODY_TEXT,maxWidth:420,margin:'0 auto',lineHeight:1.75}}>No sales pitch. No long onboarding. You will have data on your brand within 3 business days.</p>
+        </div>
+        <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:0,position:'relative'}}>
+          {[
+            {step:'01',title:'30-minute call',desc:'We learn about your brand, category and competitors. You tell us who to track. No preparation needed.'},
+            {step:'02',title:'Brand setup',desc:'We configure your competitive set and signal sources. Takes 24 hours. You do nothing.'},
+            {step:'03',title:'Data collection',desc:'We pull signals from search, social, reviews and news across your brand and all competitors.'},
+            {step:'04',title:'Report delivered',desc:'Your dashboard goes live and your PDF report lands in your inbox. Within 3 business days of the call.'},
+          ].map((s, i) => (
+            <div key={s.step} style={{padding:'28px 24px',position:'relative',borderLeft:i===0?'none':`1px solid ${BORDER}`}}>
+              <div style={{fontFamily:'Playfair Display,serif',fontSize:36,fontWeight:800,color:'#f0ece4',lineHeight:1,marginBottom:12}}>{s.step}</div>
+              <div style={{fontSize:14,fontWeight:600,color:DARK,marginBottom:8}}>{s.title}</div>
+              <div style={{fontSize:13,color:BODY_TEXT,lineHeight:1.7}}>{s.desc}</div>
+            </div>
+          ))}
+        </div>
+        <div style={{marginTop:32,padding:'20px 24px',background:'#f9f9f9',borderRadius:10,border:`1px solid ${BORDER}`,textAlign:'center'}}>
+          <span style={{fontSize:13,color:BODY_TEXT}}>First call is free. No commitment until you see your brand data. </span>
+          <a href={CALENDLY} target="_blank" rel="noopener noreferrer" style={{fontSize:13,fontWeight:600,color:GOLD}}>Book your 30-minute call →</a>
+        </div>
+      </section>
       <section style={{background:DEEP,padding:'56px 24px',textAlign:'center'}}>
         <h2 style={{fontFamily:'Playfair Display,serif',fontSize:25,fontWeight:700,color:CREAM,marginBottom:12,lineHeight:1.3}}>
           {activeTab === 'guide' ? <>Not sure which tier fits?<br/>Let&apos;s talk it through.</> : <>Start with one report.<br/>Stay for the intelligence.</>}
