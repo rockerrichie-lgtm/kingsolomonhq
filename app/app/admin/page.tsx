@@ -19,6 +19,52 @@ const ADMIN_PASSWORD = 'ks-admin-2026'
 const KPI_NAMES = ['awareness', 'consideration', 'usage', 'imagery', 'buzz']
 const CX_THEMES = ['Product', 'Experience', 'Customer Service', 'Pricing', 'Collections']
 
+const IQ_VERDICT_PLACEHOLDERS: Record<string, { signal: string; action: string }> = {
+  awareness: {
+    signal: 'Signal: [what the Searched/Found/Shown data shows + the business consequence it creates]',
+    action: 'Action: [specific intervention to build brand recall + time horizon]',
+  },
+  consideration: {
+    signal: 'Signal: [what Comparing/Trialling/Interested data shows + commercial consequence]',
+    action: 'Action: [specific intervention to reduce trial friction + time horizon]',
+  },
+  usage: {
+    signal: 'Signal: [what Repeat/Lost/Switchers data shows + retention consequence]',
+    action: 'Action: [specific intervention to protect repeat purchase + time horizon]',
+  },
+  imagery: {
+    signal: 'Signal: [what positive vs negative attribute language shows + positioning consequence]',
+    action: 'Action: [specific communication or product intervention + time horizon]',
+  },
+  buzz: {
+    signal: 'Signal: [what Praising/Questioning/Attacking data shows + reputation consequence]',
+    action: 'Action: [specific intervention to protect or amplify brand conversation + time horizon]',
+  },
+}
+
+const EYE_VERDICT_PLACEHOLDERS: Record<string, { signal: string; action: string }> = {
+  'Product': {
+    signal: 'Signal: [what positive vs negative product signals show + business consequence]',
+    action: 'Action: [specific product or communication intervention + time horizon]',
+  },
+  'Experience': {
+    signal: 'Signal: [what experience dropout rate and signals show + revenue consequence]',
+    action: 'Action: [specific UX or checkout intervention + time horizon]',
+  },
+  'Customer Service': {
+    signal: 'Signal: [what service signals show + churn/advocacy consequence]',
+    action: 'Action: [specific service SLA or process intervention + time horizon]',
+  },
+  'Pricing': {
+    signal: 'Signal: [what pricing signals show + value perception consequence]',
+    action: 'Action: [specific value communication intervention + time horizon]',
+  },
+  'Collections': {
+    signal: 'Signal: [what range and availability signals show + acquisition consequence]',
+    action: 'Action: [specific range or inventory intervention + time horizon]',
+  },
+}
+
 type Section = 'payments' | 'clients' | 'approval' | 'upload' | 'scraper'
 type Decision = 'approve' | 'reject' | null
 
@@ -38,6 +84,7 @@ export default function AdminPage() {
   const [scraperInstructions, setScraperInstructions] = useState<Record<string, string>>({})
   const [kpiDecisions, setKpiDecisions] = useState<Record<string, Decision>>({})
   const [kpiInstructions, setKpiInstructions] = useState<Record<string, string>>({})
+  const [iqVerdicts, setIqVerdicts] = useState<Record<string, { kpi_verdicts: Record<string, string>; overall: string }>>({})
   const [themeDecisions, setThemeDecisions] = useState<Record<string, Decision>>({})
   const [themeInstructions, setThemeInstructions] = useState<Record<string, string>>({})
   const [auditVerdicts, setAuditVerdicts] = useState<Record<string, any>>({})
@@ -188,6 +235,8 @@ export default function AdminPage() {
     setLoading(true)
     setMsg('')
     const { brand_id, kpis } = group
+    const groupKey = `${brand_id}__${group.checkpoint}`
+    const verdictData = iqVerdicts[groupKey]
     let approvedCount = 0
     let rejectedCount = 0
     for (const kpi of kpis) {
@@ -218,6 +267,33 @@ export default function AdminPage() {
           headers: { ...headers, 'Prefer': 'return=minimal' },
           body: JSON.stringify({ iq_report_ready: true })
         })
+        // Save IQ verdict if written
+        if (verdictData?.overall) {
+          const kpiVerdictsText = KPI_NAMES
+            .filter(k => verdictData.kpi_verdicts?.[k])
+            .map(k => `${k.toUpperCase()}: ${verdictData.kpi_verdicts[k]}`)
+            .join('\n\n')
+          const fullNarrative = verdictData.overall
+          const topInsights = KPI_NAMES
+            .filter(k => verdictData.kpi_verdicts?.[k])
+            .map(k => verdictData.kpi_verdicts[k])
+          await fetch(`${SUPABASE_URL}/rest/v1/verdicts`, {
+            method: 'POST',
+            headers: { ...headers, 'Prefer': 'return=minimal' },
+            body: JSON.stringify({
+              brand_id,
+              verdict_type: 'brand_level',
+              narrative: fullNarrative,
+              top_insights: topInsights,
+              recommended_action: null,
+              recommended_action_window: null,
+              risk_flags: null,
+              confidence_level: 'high',
+              status: 'ready',
+              created_at: new Date().toISOString(),
+            })
+          })
+        }
         setMsg('✅ All KPIs approved. IQ report unlocked for client.')
       } else {
         setMsg(`✅ ${approvedCount} KPI${approvedCount > 1 ? 's' : ''} approved and published.`)
@@ -287,14 +363,15 @@ export default function AdminPage() {
         headers: { ...headers, 'Prefer': 'return=minimal' },
         body: JSON.stringify({ eye_report_ready: true })
       })
-      if (verdicts?.overall_verdict) {
+      const overallVerdict = verdicts?.overall_verdict || auditVerdicts[audit.id]?.overall_verdict
+      if (overallVerdict) {
         await fetch(`${SUPABASE_URL}/rest/v1/cx_verdicts`, {
           method: 'POST',
           headers: { ...headers, 'Prefer': 'return=minimal' },
           body: JSON.stringify({
             audit_id: audit.id,
             brand_id: audit.brand_id,
-            narrative: verdicts.overall_verdict,
+            narrative: overallVerdict,
             mystery_audit_triggered: false,
             status: 'ready',
           })
@@ -365,6 +442,39 @@ export default function AdminPage() {
     fetchPendingKpis()
   }
 
+  // ── Verdict field helper ───────────────────────────────────────────────────
+  function VerdictField({ groupKey, field, label, placeholder, color = GOLD, isOverall = false }: {
+    groupKey: string; field: string; label: string; placeholder: string; color?: string; isOverall?: boolean
+  }) {
+    const val = isOverall
+      ? iqVerdicts[groupKey]?.overall || ''
+      : iqVerdicts[groupKey]?.kpi_verdicts?.[field] || ''
+    return (
+      <div style={{background:isOverall?'rgba(201,168,76,0.06)':WHITE,border:`1px solid ${isOverall?'rgba(201,168,76,0.25)':BORDER}`,borderRadius:8,padding:'12px 14px',marginBottom:10}}>
+        <div style={{fontSize:9,fontWeight:700,color,textTransform:'uppercase',letterSpacing:'0.12em',marginBottom:6}}>{label}</div>
+        <textarea
+          placeholder={placeholder}
+          value={val}
+          onChange={e => {
+            if (isOverall) {
+              setIqVerdicts(prev => ({ ...prev, [groupKey]: { ...prev[groupKey] || { kpi_verdicts: {}, overall: '' }, overall: e.target.value } }))
+            } else {
+              setIqVerdicts(prev => ({
+                ...prev,
+                [groupKey]: {
+                  ...prev[groupKey] || { kpi_verdicts: {}, overall: '' },
+                  kpi_verdicts: { ...(prev[groupKey]?.kpi_verdicts || {}), [field]: e.target.value }
+                }
+              }))
+            }
+          }}
+          rows={isOverall ? 3 : 2}
+          style={{width:'100%',padding:'8px 10px',border:`1px solid ${isOverall?'rgba(201,168,76,0.3)':BORDER}`,borderRadius:6,fontSize:13,color:DARK,fontFamily:isOverall?'Georgia,serif':'Inter,sans-serif',fontStyle:isOverall?'italic':'normal',resize:'vertical',lineHeight:1.65}}
+        />
+      </div>
+    )
+  }
+
   if (!authed) return (
     <div style={{minHeight:'100vh',background:DEEP,display:'flex',alignItems:'center',justifyContent:'center'}}>
       <style>{`*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}body{font-family:'Inter',sans-serif}`}</style>
@@ -420,8 +530,6 @@ export default function AdminPage() {
           <div>
             <h1 style={{fontFamily:'Georgia,serif',fontSize:25,fontWeight:700,color:DARK,marginBottom:6}}>Payments</h1>
             <p style={{fontSize:14,color:BODY_TEXT,marginBottom:20}}>Create orders manually after bank transfer. Mark paid to unlock client dashboard.</p>
-
-            {/* Create order form */}
             <div style={{background:WHITE,border:`1px solid ${BORDER}`,borderRadius:12,padding:'20px 24px',marginBottom:20}}>
               <div style={{fontSize:11,fontWeight:600,color:GOLD,textTransform:'uppercase',letterSpacing:'0.1em',marginBottom:16}}>Create new order</div>
               <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr 1fr 1fr 160px',gap:10,marginBottom:12,alignItems:'flex-end'}}>
@@ -470,8 +578,6 @@ export default function AdminPage() {
               </div>
               <div style={{fontSize:11,color:'#aaa'}}>Order created as <strong>pending</strong>. Once client bank transfers — click Mark paid to unlock their dashboard.</div>
             </div>
-
-            {/* Orders table */}
             <div style={{background:WHITE,border:`1px solid ${BORDER}`,borderRadius:12,overflow:'hidden'}}>
               <table style={{width:'100%',borderCollapse:'collapse',fontSize:13}}>
                 <thead><tr style={{background:'#fafafa'}}>
@@ -570,7 +676,7 @@ export default function AdminPage() {
         {section === 'approval' && (
           <div>
             <h1 style={{fontFamily:'Georgia,serif',fontSize:25,fontWeight:700,color:DARK,marginBottom:6}}>Data approval</h1>
-            <p style={{fontSize:14,color:BODY_TEXT,marginBottom:20}}>Tick or reject each KPI and CX theme. Write the Verdict before approving. Hit Submit to publish to client dashboard.</p>
+            <p style={{fontSize:14,color:BODY_TEXT,marginBottom:20}}>Approve or reject each KPI and theme. Write your verdict. Submit to publish to client dashboard.</p>
 
             {/* IQ */}
             <div style={{marginBottom:32}}>
@@ -593,6 +699,8 @@ export default function AdminPage() {
                           </div>
                           <span style={{fontSize:10,fontWeight:600,padding:'3px 10px',borderRadius:20,background:'rgba(201,168,76,0.1)',color:AMBER}}>Pending review</span>
                         </div>
+
+                        {/* KPI approval cards */}
                         <div style={{display:'grid',gridTemplateColumns:'repeat(5,1fr)',gap:10,marginBottom:16}}>
                           {KPI_NAMES.map(kpiName => {
                             const kpi = group.kpis.find((k: any) => k.kpi_name === kpiName)
@@ -613,6 +721,8 @@ export default function AdminPage() {
                             )
                           })}
                         </div>
+
+                        {/* Rejection instructions */}
                         {rejectedKpis.length > 0 && (
                           <div style={{marginBottom:16,display:'flex',flexDirection:'column',gap:8}}>
                             {rejectedKpis.map((kpi: any) => (
@@ -623,6 +733,57 @@ export default function AdminPage() {
                             ))}
                           </div>
                         )}
+
+                        {/* IQ Verdict write box */}
+                        <div style={{borderTop:`1px solid ${BORDER}`,paddingTop:16,marginBottom:16}}>
+                          <div style={{fontSize:11,fontWeight:600,color:GOLD,textTransform:'uppercase',letterSpacing:'0.1em',marginBottom:12}}>⭐ Solomon&apos;s IQ Verdict</div>
+                          <div style={{fontSize:12,color:'#aaa',marginBottom:12}}>Write 2 sentences per KPI — Signal (what the data shows + business consequence) and Action (specific intervention + time horizon).</div>
+
+                          {KPI_NAMES.map(kpiName => {
+                            const kpi = group.kpis.find((k: any) => k.kpi_name === kpiName)
+                            const ph = IQ_VERDICT_PLACEHOLDERS[kpiName]
+                            const val = iqVerdicts[groupKey]?.kpi_verdicts?.[kpiName] || ''
+                            return (
+                              <div key={kpiName} style={{background:'#f9f9f9',border:`1px solid ${BORDER}`,borderRadius:8,padding:'12px 14px',marginBottom:8}}>
+                                <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:6}}>
+                                  <div style={{fontSize:9,fontWeight:700,color:GOLD,textTransform:'uppercase',letterSpacing:'0.12em'}}>{kpiName}</div>
+                                  {kpi && <div style={{fontSize:10,color:'#aaa'}}>Score: {kpiName==='buzz'&&kpi.score>0?`+${kpi.score}`:kpi.score}</div>}
+                                </div>
+                                <textarea
+                                  placeholder={`${ph.signal}\n${ph.action}`}
+                                  value={val}
+                                  onChange={e => setIqVerdicts(prev => ({
+                                    ...prev,
+                                    [groupKey]: {
+                                      ...prev[groupKey] || { kpi_verdicts: {}, overall: '' },
+                                      kpi_verdicts: { ...(prev[groupKey]?.kpi_verdicts || {}), [kpiName]: e.target.value }
+                                    }
+                                  }))}
+                                  rows={2}
+                                  style={{width:'100%',padding:'8px 10px',border:`1px solid ${BORDER}`,borderRadius:6,fontSize:13,color:DARK,fontFamily:'Inter,sans-serif',resize:'vertical',lineHeight:1.65}}
+                                />
+                              </div>
+                            )
+                          })}
+
+                          {/* Overall IQ verdict */}
+                          <div style={{background:'rgba(201,168,76,0.06)',border:`1px solid rgba(201,168,76,0.25)`,borderRadius:8,padding:'12px 14px',marginTop:4}}>
+                            <div style={{fontSize:9,fontWeight:700,color:GOLD,textTransform:'uppercase',letterSpacing:'0.12em',marginBottom:6}}>Overall IQ Verdict</div>
+                            <div style={{fontSize:11,color:'#aaa',marginBottom:6}}>3 sentences: Risk (biggest risk + which KPI) · Strength (biggest strength + which KPI) · Priority (highest ROI intervention)</div>
+                            <textarea
+                              placeholder={'Risk: [biggest risk + which KPI is driving it].\nStrength: [biggest strength + which KPI].\nPriority: [the one intervention with highest commercial ROI].'}
+                              value={iqVerdicts[groupKey]?.overall || ''}
+                              onChange={e => setIqVerdicts(prev => ({
+                                ...prev,
+                                [groupKey]: { ...prev[groupKey] || { kpi_verdicts: {}, overall: '' }, overall: e.target.value }
+                              }))}
+                              rows={3}
+                              style={{width:'100%',padding:'8px 10px',border:`1px solid rgba(201,168,76,0.3)`,borderRadius:6,fontSize:13,color:DARK,fontFamily:'Georgia,serif',fontStyle:'italic',resize:'vertical',lineHeight:1.7}}
+                            />
+                          </div>
+                        </div>
+
+                        {/* Submit row */}
                         <div style={{display:'flex',alignItems:'center',justifyContent:'space-between'}}>
                           <div style={{fontSize:12,color:'#aaa'}}>{group.kpis.filter((k:any)=>kpiDecisions[k.id]==='approve').length} approved · {group.kpis.filter((k:any)=>kpiDecisions[k.id]==='reject').length} flagged · {group.kpis.filter((k:any)=>!kpiDecisions[k.id]).length} undecided</div>
                           <div style={{display:'flex',gap:8}}>
@@ -713,6 +874,7 @@ export default function AdminPage() {
                           </div>
                         )}
 
+                        {/* Theme approval cards */}
                         <div style={{fontSize:11,fontWeight:600,color:BODY_TEXT,textTransform:'uppercase',letterSpacing:'0.1em',marginBottom:10}}>CX themes</div>
                         {themes.length === 0 ? (
                           <div style={{fontSize:13,color:'#aaa',marginBottom:16}}>No theme scores found for this audit.</div>
@@ -743,6 +905,7 @@ export default function AdminPage() {
                           </div>
                         )}
 
+                        {/* Rejection instructions */}
                         {rejectedThemes.length > 0 && (
                           <div style={{marginBottom:16,display:'flex',flexDirection:'column',gap:8}}>
                             {rejectedThemes.map(theme => (
@@ -754,54 +917,62 @@ export default function AdminPage() {
                           </div>
                         )}
 
-                        {/* Verdict — write manually */}
+                        {/* Eye Verdict write box */}
                         <div style={{borderTop:`1px solid ${BORDER}`,paddingTop:16,marginBottom:16}}>
                           <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:12}}>
-                            <div style={{fontSize:11,fontWeight:600,color:GOLD,textTransform:'uppercase',letterSpacing:'0.1em'}}>Solomon&apos;s Eye Verdict</div>
+                            <div style={{fontSize:11,fontWeight:600,color:GOLD,textTransform:'uppercase',letterSpacing:'0.1em'}}>👁 Solomon&apos;s Eye Verdict</div>
                             <button onClick={() => generateVerdict(audit, themes)} disabled={isGenerating || themes.length === 0}
                               style={{padding:'7px 14px',background:isGenerating?'#e0e0e0':MID_GREEN,color:isGenerating?'#aaa':WHITE,border:'none',borderRadius:7,fontSize:12,fontWeight:600,cursor:isGenerating?'not-allowed':'pointer',fontFamily:'Inter,sans-serif'}}>
                               {isGenerating ? '⏳ Generating...' : verdicts ? '↻ Regenerate' : '✦ Generate verdict'}
                             </button>
                           </div>
-                          {verdicts ? (
-                            <div style={{display:'flex',flexDirection:'column',gap:10}}>
-                              {CX_THEMES.map(themeName => (
-                                verdicts.theme_verdicts?.[themeName] ? (
-                                  <div key={themeName} style={{background:'#f9f9f9',borderRadius:8,padding:'12px 14px'}}>
-                                    <div style={{fontSize:10,fontWeight:600,color:MID_GREEN,textTransform:'uppercase',letterSpacing:'0.1em',marginBottom:6}}>{themeName}</div>
-                                    <textarea value={verdicts.theme_verdicts[themeName]}
-                                      onChange={e => setAuditVerdicts(prev => ({...prev,[audit.id]:{...prev[audit.id],theme_verdicts:{...prev[audit.id].theme_verdicts,[themeName]:e.target.value}}}))}
-                                      rows={2} style={{width:'100%',padding:'8px 10px',border:`1px solid ${BORDER}`,borderRadius:6,fontSize:13,color:DARK,fontFamily:'Inter,sans-serif',resize:'vertical',lineHeight:1.6}}/>
-                                  </div>
-                                ) : null
-                              ))}
-                              {verdicts.overall_verdict && (
-                                <div style={{background:'rgba(201,168,76,0.06)',border:`1px solid rgba(201,168,76,0.2)`,borderRadius:8,padding:'12px 14px'}}>
-                                  <div style={{fontSize:10,fontWeight:600,color:GOLD,textTransform:'uppercase',letterSpacing:'0.1em',marginBottom:6}}>Overall Eye Verdict</div>
-                                  <textarea value={verdicts.overall_verdict}
-                                    onChange={e => setAuditVerdicts(prev => ({...prev,[audit.id]:{...prev[audit.id],overall_verdict:e.target.value}}))}
-                                    rows={3} style={{width:'100%',padding:'8px 10px',border:`1px solid rgba(201,168,76,0.3)`,borderRadius:6,fontSize:13,color:DARK,fontFamily:'Georgia,serif',fontStyle:'italic',resize:'vertical',lineHeight:1.7}}/>
+                          <div style={{fontSize:12,color:'#aaa',marginBottom:12}}>Write 2 sentences per theme — Signal (what the data shows + business consequence) and Action (specific intervention + time horizon).</div>
+
+                          {CX_THEMES.map(themeName => {
+                            const theme = themes.find(t => t.theme === themeName)
+                            const ph = EYE_VERDICT_PLACEHOLDERS[themeName]
+                            const val = verdicts?.theme_verdicts?.[themeName] || auditVerdicts[audit.id]?.theme_verdicts?.[themeName] || ''
+                            return (
+                              <div key={themeName} style={{background:'#f9f9f9',border:`1px solid ${BORDER}`,borderRadius:8,padding:'12px 14px',marginBottom:8}}>
+                                <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:6}}>
+                                  <div style={{fontSize:9,fontWeight:700,color:MID_GREEN,textTransform:'uppercase',letterSpacing:'0.12em'}}>{themeName}</div>
+                                  {theme && <div style={{fontSize:10,color:'#aaa'}}>Score: {theme.nps_score > 0 ? `+${theme.nps_score}` : theme.nps_score} · {theme.sentiment}</div>}
                                 </div>
-                              )}
-                            </div>
-                          ) : (
-                            <div style={{display:'flex',flexDirection:'column',gap:10}}>
-                              <div style={{fontSize:12,color:'#aaa',fontStyle:'italic',marginBottom:4}}>
-                                Write your own verdict below — or click Generate to auto-create from signal data.
-                              </div>
-                              <div style={{background:'rgba(201,168,76,0.06)',border:`1px solid rgba(201,168,76,0.2)`,borderRadius:8,padding:'12px 14px'}}>
-                                <div style={{fontSize:10,fontWeight:600,color:GOLD,textTransform:'uppercase',letterSpacing:'0.1em',marginBottom:6}}>Overall Eye Verdict</div>
                                 <textarea
-                                  placeholder="Write your verdict here — what happened, why, and what the client should do next..."
-                                  value={auditVerdicts[audit.id]?.overall_verdict || ''}
-                                  onChange={e => setAuditVerdicts(prev => ({...prev,[audit.id]:{...prev[audit.id] || {}, overall_verdict: e.target.value}}))}
-                                  rows={4}
-                                  style={{width:'100%',padding:'8px 10px',border:`1px solid rgba(201,168,76,0.3)`,borderRadius:6,fontSize:13,color:DARK,fontFamily:'Georgia,serif',fontStyle:'italic',resize:'vertical',lineHeight:1.7}}/>
+                                  placeholder={`${ph.signal}\n${ph.action}`}
+                                  value={val}
+                                  onChange={e => setAuditVerdicts(prev => ({
+                                    ...prev,
+                                    [audit.id]: {
+                                      ...prev[audit.id] || {},
+                                      theme_verdicts: { ...(prev[audit.id]?.theme_verdicts || {}), [themeName]: e.target.value }
+                                    }
+                                  }))}
+                                  rows={2}
+                                  style={{width:'100%',padding:'8px 10px',border:`1px solid ${BORDER}`,borderRadius:6,fontSize:13,color:DARK,fontFamily:'Inter,sans-serif',resize:'vertical',lineHeight:1.65}}
+                                />
                               </div>
-                            </div>
-                          )}
+                            )
+                          })}
+
+                          {/* Overall Eye verdict */}
+                          <div style={{background:'rgba(201,168,76,0.06)',border:`1px solid rgba(201,168,76,0.25)`,borderRadius:8,padding:'12px 14px',marginTop:4}}>
+                            <div style={{fontSize:9,fontWeight:700,color:GOLD,textTransform:'uppercase',letterSpacing:'0.12em',marginBottom:6}}>Overall Eye Verdict</div>
+                            <div style={{fontSize:11,color:'#aaa',marginBottom:6}}>3 sentences: Risk (biggest CX risk + theme) · Strength (biggest CX strength + theme) · Priority (highest ROI CX intervention)</div>
+                            <textarea
+                              placeholder={'Risk: [biggest CX risk + theme driving it].\nStrength: [biggest CX strength + theme].\nPriority: [highest ROI CX intervention].'}
+                              value={verdicts?.overall_verdict || auditVerdicts[audit.id]?.overall_verdict || ''}
+                              onChange={e => setAuditVerdicts(prev => ({
+                                ...prev,
+                                [audit.id]: { ...prev[audit.id] || {}, overall_verdict: e.target.value }
+                              }))}
+                              rows={3}
+                              style={{width:'100%',padding:'8px 10px',border:`1px solid rgba(201,168,76,0.3)`,borderRadius:6,fontSize:13,color:DARK,fontFamily:'Georgia,serif',fontStyle:'italic',resize:'vertical',lineHeight:1.7}}
+                            />
+                          </div>
                         </div>
 
+                        {/* Submit row */}
                         <div style={{display:'flex',alignItems:'center',justifyContent:'space-between'}}>
                           <div style={{fontSize:12,color:'#aaa'}}>{themes.filter(t=>themeDecisions[t.id]==='approve').length} approved · {themes.filter(t=>themeDecisions[t.id]==='reject').length} flagged · {themes.filter(t=>!themeDecisions[t.id]).length} undecided</div>
                           <div style={{display:'flex',gap:8}}>
