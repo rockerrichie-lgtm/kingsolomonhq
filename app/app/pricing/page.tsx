@@ -87,7 +87,7 @@ function IQPricing() {
         <Lbl text="Insight" />
         <div style={{fontSize:14,color:BODY_TEXT,marginBottom:14,lineHeight:1.6}}>A full point-in-time brand health snapshot.</div>
         <BtnGhost text="Book a call" />
-        <Price amount="599" billing="One-time" saving="per report" />
+        <Price amount="1,499" billing="One-time" saving="per report" />
         <Divider />
         <Feat text="All 5 KPIs tracked" />
         <Feat text="Competitor landscape included" />
@@ -100,7 +100,7 @@ function IQPricing() {
         <Lbl text="Growth" />
         <div style={{fontSize:14,color:BODY_TEXT,marginBottom:14,lineHeight:1.6}}>Continuous tracking with reports every 6 months.</div>
         <BtnPrimary text="Book a call" />
-        <Price amount="3,599" color={GOLD} billing="Billed every 6 months" saving="$1,799 per report · includes live dashboard and continuous tracking" />
+        <Price amount="2,598" color={GOLD} billing="Billed every 6 months" saving="$1,299 per report · saves $400 vs 2 x Insight" />
         <Divider />
         <Feat text="Continuous 6-month tracking" />
         <Feat text="Live dashboard access" />
@@ -114,7 +114,7 @@ function IQPricing() {
         <Lbl text="Command" />
         <div style={{fontSize:14,color:BODY_TEXT,marginBottom:14,lineHeight:1.6}}>Quarterly reports timed to your board cycles.</div>
         <BtnGhost text="Book a call" />
-        <Price amount="2,799" billing="Billed per quarter" saving="$699 per report · quarterly cadence with live dashboard access" />
+        <Price amount="4,999" billing="Billed annually" saving="$1,249 per report · saves $997 vs 4 x Insight" />
         <Divider />
         <Feat text="Everything in Growth" color={MID_GREEN} />
         <Feat text="4 quarterly reports per year" color={MID_GREEN} />
@@ -137,7 +137,7 @@ function EyePricing() {
           <Lbl text="Insight" />
           <div style={{fontSize:14,color:BODY_TEXT,marginBottom:14,lineHeight:1.6}}>One-time CX audit of your brand experience.</div>
           <BtnGhost text="Book a call" />
-          <Price amount="1,499" billing="One-time" saving="per audit" />
+          <Price amount="1,799" billing="One-time" saving="per audit" />
           <Divider />
           <Feat text="Full CX walkthrough: app, web, purchase flow" />
           <Feat text="Screen recording with expert commentary" />
@@ -150,20 +150,20 @@ function EyePricing() {
           <Lbl text="Growth" />
           <div style={{fontSize:14,color:BODY_TEXT,marginBottom:14,lineHeight:1.6}}>Two audits across 6 months to track your CX improvement.</div>
           <BtnPrimary text="Book a call" />
-          <Price amount="5,999" color={GOLD} billing="Billed every 6 months" saving="$2,999 per audit · saves $999 vs 2 x Insight" />
+          <Price amount="2,999" color={GOLD} billing="Billed every 6 months" saving="$1,499 per audit · saves $599 vs 2 x Insight" />
           <Divider />
           <Feat text="Two full CX audits across 6 months" />
           <Feat text="Before and after comparison report" />
           <Feat text="Competitor CX benchmarking" />
           <Feat text="Friction point resolution tracking" />
-          <Feat text="Priority scheduling, 5-day delivery" />
+          <Feat text="Priority scheduling, 3-day delivery" />
         </Card>
         <Card>
           <Badge text="Best value per audit" color={MID_GREEN} bg="rgba(31,74,47,0.08)" border="1px solid rgba(31,74,47,0.2)" />
           <Lbl text="Command" />
           <div style={{fontSize:14,color:BODY_TEXT,marginBottom:14,lineHeight:1.6}}>Quarterly CX audits timed to your business reviews.</div>
           <BtnGhost text="Book a call" />
-          <Price amount="4,999" billing="Billed per quarter" saving="$1,249 per audit · saves $3,996 vs 4 x Insight" />
+          <Price amount="4,999" billing="Billed annually" saving="$1,249 per audit · saves $2,197 vs 4 x Insight" />
           <Divider />
           <Feat text="Everything in Growth" color={MID_GREEN} />
           <Feat text="4 quarterly CX audits per year" color={MID_GREEN} />
@@ -200,7 +200,7 @@ function GuidePricing() {
           <Lbl text="Growth" color={PURPLE} />
           <div style={{fontSize:14,color:BODY_TEXT,marginBottom:14,lineHeight:1.6}}>Full async access with monthly strategy reviews.</div>
           <BtnPrimary text="Book a call" />
-          <Price amount="7,497" color={GOLD} billing="Billed per quarter" saving="$625 per session · 12 sessions + full async" />
+          <Price amount="5,997" color={GOLD} billing="Billed per quarter" saving="$500 per session · 12 sessions + full async" />
           <Divider />
           <Feat text="4 sessions per month (12 per quarter)" color={PURPLE} />
           <Feat text="Full async: WhatsApp, email, voice" color={PURPLE} />
@@ -213,7 +213,7 @@ function GuidePricing() {
           <Lbl text="Command" color={PURPLE} />
           <div style={{fontSize:14,color:BODY_TEXT,marginBottom:14,lineHeight:1.6}}>On-call strategic partner for board-level decisions.</div>
           <BtnGhost text="Book a call" />
-          <Price amount="14,997" billing="Billed per quarter" saving="Weekly sessions · on-call access within 4 hrs" />
+          <Price amount="9,997" billing="Billed per quarter" saving="Weekly sessions · on-call access within 4 hrs" />
           <Divider />
           <Feat text="13 sessions per quarter" color={PURPLE} />
           <Feat text="On-call priority response within 4 hrs" color={PURPLE} />
@@ -228,14 +228,15 @@ function GuidePricing() {
 
 function FAQ({ activeTab }: { activeTab: string }) {
   const questions = activeTab === 'iq' ? [
-    ['What is a report?', "A full brand health analysis with all 5 KPI scores, competitor comparison, Solomon's Verdict narrative, recommended action, and risk flags. Delivered as PDF and PPT."],
+    ['What is a report?', "A full brand health analysis with all 5 KPI scores, competitor comparison, Solomon's Verdict narrative, recommended action, and risk flags. Delivered as PDF and PPT in 3 days."],
     ["Insight vs Growth — what's the difference?", 'Insight is a point-in-time snapshot. Growth gives you 6 months of continuous tracking plus two reports — month 3 and month 6.'],
-    ['Why is Command cheaper per report than Insight?', 'Four Insight reports cost $2,396. Command is $11,196 per year and includes live tracking, unlimited competitors, quarterly reports, and a free annual summary.'],
+    ['Why is Command cheaper per report than Insight?', 'Four Insight reports cost $5,996. Command is $4,999 per year and includes live tracking, unlimited competitors, quarterly reports, and a free annual summary — saving you $997.'],
     ['Do all plans include competitor tracking?', 'Yes. Every plan includes a full competitor landscape. There are no brand or competitor limits on any plan.'],
   ] : activeTab === 'eye' ? [
-    ['What is a CX audit?', "A full walkthrough of your customer experience — app, website, purchase flow, support — delivered as a screen recording with expert commentary plus a written PDF and PPT report."],
+    ['What is a CX audit?', "A full walkthrough of your customer experience — app, website, purchase flow, support — delivered as a screen recording with expert commentary plus a written PDF and PPT report in 3 days."],
     ['Who conducts the audit?', 'Every audit is conducted personally by John Richard — 9 years of brand and consumer research expertise.'],
     ['How is Eye different from IQ?', "IQ tracks brand health scores over time. Eye audits the actual customer experience — what it feels like to be your customer."],
+    ['Why is Command cheaper per audit than Insight?', 'Four Insight audits cost $7,196. Command is $4,999 per year — saving you $2,197 with quarterly cadence, competitor benchmarking and priority delivery included.'],
   ] : [
     ['What does fully embedded mean?', "John is part of your decision-making process — not just a monthly advisor. On-call access, document reviews, strategic input on real decisions as they happen."],
     ['Is there a minimum commitment?', 'Yes — all Guide tiers have a 3-month minimum. Strategic advisory takes at least 90 days to show results.'],
@@ -333,6 +334,7 @@ export default function PricingPage() {
           <a href={CALENDLY} target="_blank" rel="noopener noreferrer" style={{fontSize:13,fontWeight:600,color:GOLD}}>Book your 30-minute call →</a>
         </div>
       </section>
+
       <section style={{background:DEEP,padding:'56px 24px',textAlign:'center'}}>
         <h2 style={{fontFamily:'Playfair Display,serif',fontSize:25,fontWeight:700,color:CREAM,marginBottom:12,lineHeight:1.3}}>
           {activeTab === 'guide' ? <>Not sure which tier fits?<br/>Let&apos;s talk it through.</> : <>Start with one report.<br/>Stay for the intelligence.</>}
