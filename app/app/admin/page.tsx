@@ -47,6 +47,8 @@ export default function AdminPage() {
   const [csvCheckpoint, setCsvCheckpoint] = useState('current')
   const [csvPreview, setCsvPreview] = useState<any[]>([])
   const [csvUploading, setCsvUploading] = useState(false)
+  const [newOrder, setNewOrder] = useState({ brand_id: '', plan_name: 'Insight', product: 'iq', amount_inr: '', client_email: '' })
+  const [orderCreating, setOrderCreating] = useState(false)
 
   const anon = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ''
   const headers = {
@@ -110,6 +112,40 @@ export default function AdminPage() {
     })
     setMsg('✅ Order marked as paid.')
     fetchOrders()
+  }
+
+  const createOrder = async () => {
+    if (!newOrder.brand_id) { setMsg('❌ Please select a brand.'); return }
+    if (!newOrder.amount_inr) { setMsg('❌ Please enter an amount.'); return }
+    if (!newOrder.client_email) { setMsg('❌ Please enter client email.'); return }
+    setOrderCreating(true)
+    setMsg('')
+    const brand = brands.find(b => b.id === newOrder.brand_id)
+    if (!brand) { setMsg('❌ Brand not found.'); setOrderCreating(false); return }
+    const row = {
+      user_id: brand.user_id,
+      email: newOrder.client_email,
+      plan_name: newOrder.plan_name,
+      product: newOrder.product,
+      currency: 'INR',
+      amount_inr: parseInt(newOrder.amount_inr),
+      amount_usd: null,
+      status: 'pending',
+      created_at: new Date().toISOString(),
+    }
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/orders`, {
+      method: 'POST',
+      headers: { ...headers, 'Prefer': 'return=minimal' },
+      body: JSON.stringify(row)
+    })
+    if (res.ok) {
+      setMsg('✅ Order created as pending. Mark paid once bank transfer is confirmed.')
+      setNewOrder({ brand_id: '', plan_name: 'Insight', product: 'iq', amount_inr: '', client_email: '' })
+      fetchOrders()
+    } else {
+      setMsg('❌ Could not create order. Check Supabase.')
+    }
+    setOrderCreating(false)
   }
 
   const groupedKpis = pendingKpis.reduce((acc: any, kpi: any) => {
@@ -383,7 +419,59 @@ export default function AdminPage() {
         {section === 'payments' && !selectedClient && (
           <div>
             <h1 style={{fontFamily:'Georgia,serif',fontSize:25,fontWeight:700,color:DARK,marginBottom:6}}>Payments</h1>
-            <p style={{fontSize:14,color:BODY_TEXT,marginBottom:20}}>All orders.</p>
+            <p style={{fontSize:14,color:BODY_TEXT,marginBottom:20}}>Create orders manually after bank transfer. Mark paid to unlock client dashboard.</p>
+
+            {/* Create order form */}
+            <div style={{background:WHITE,border:`1px solid ${BORDER}`,borderRadius:12,padding:'20px 24px',marginBottom:20}}>
+              <div style={{fontSize:11,fontWeight:600,color:GOLD,textTransform:'uppercase',letterSpacing:'0.1em',marginBottom:16}}>Create new order</div>
+              <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr 1fr 1fr 160px',gap:10,marginBottom:12,alignItems:'flex-end'}}>
+                <div>
+                  <div style={{fontSize:11,color:'#aaa',marginBottom:5}}>Brand</div>
+                  <select value={newOrder.brand_id} onChange={e => setNewOrder(p => ({...p, brand_id: e.target.value}))}
+                    style={{width:'100%',padding:'8px 10px',border:`1px solid ${BORDER}`,borderRadius:7,fontSize:13,color:DARK,background:WHITE,fontFamily:'Inter,sans-serif'}}>
+                    <option value="">Select brand</option>
+                    {brands.map(b => <option key={b.id} value={b.id}>{b.brand_name}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <div style={{fontSize:11,color:'#aaa',marginBottom:5}}>Client email</div>
+                  <input type="email" placeholder="client@brand.com" value={newOrder.client_email}
+                    onChange={e => setNewOrder(p => ({...p, client_email: e.target.value}))}
+                    style={{width:'100%',padding:'8px 10px',border:`1px solid ${BORDER}`,borderRadius:7,fontSize:13,color:DARK,fontFamily:'Inter,sans-serif'}}/>
+                </div>
+                <div>
+                  <div style={{fontSize:11,color:'#aaa',marginBottom:5}}>Plan</div>
+                  <select value={newOrder.plan_name} onChange={e => setNewOrder(p => ({...p, plan_name: e.target.value}))}
+                    style={{width:'100%',padding:'8px 10px',border:`1px solid ${BORDER}`,borderRadius:7,fontSize:13,color:DARK,background:WHITE,fontFamily:'Inter,sans-serif'}}>
+                    <option>Insight</option>
+                    <option>Growth</option>
+                    <option>Command</option>
+                  </select>
+                </div>
+                <div>
+                  <div style={{fontSize:11,color:'#aaa',marginBottom:5}}>Product</div>
+                  <select value={newOrder.product} onChange={e => setNewOrder(p => ({...p, product: e.target.value}))}
+                    style={{width:'100%',padding:'8px 10px',border:`1px solid ${BORDER}`,borderRadius:7,fontSize:13,color:DARK,background:WHITE,fontFamily:'Inter,sans-serif'}}>
+                    <option value="iq">IQ</option>
+                    <option value="eye">Eye</option>
+                    <option value="guide">Guide</option>
+                  </select>
+                </div>
+                <div>
+                  <div style={{fontSize:11,color:'#aaa',marginBottom:5}}>Amount (INR)</div>
+                  <input type="number" placeholder="e.g. 12000" value={newOrder.amount_inr}
+                    onChange={e => setNewOrder(p => ({...p, amount_inr: e.target.value}))}
+                    style={{width:'100%',padding:'8px 10px',border:`1px solid ${BORDER}`,borderRadius:7,fontSize:13,color:DARK,fontFamily:'Inter,sans-serif'}}/>
+                </div>
+                <button onClick={createOrder} disabled={orderCreating}
+                  style={{padding:'9px 16px',background:GOLD,color:DEEP,border:'none',borderRadius:7,fontSize:13,fontWeight:600,cursor:'pointer',fontFamily:'Inter,sans-serif',height:36}}>
+                  {orderCreating ? 'Creating...' : 'Create order →'}
+                </button>
+              </div>
+              <div style={{fontSize:11,color:'#aaa'}}>Order created as <strong>pending</strong>. Once client bank transfers — click Mark paid to unlock their dashboard.</div>
+            </div>
+
+            {/* Orders table */}
             <div style={{background:WHITE,border:`1px solid ${BORDER}`,borderRadius:12,overflow:'hidden'}}>
               <table style={{width:'100%',borderCollapse:'collapse',fontSize:13}}>
                 <thead><tr style={{background:'#fafafa'}}>
@@ -482,7 +570,7 @@ export default function AdminPage() {
         {section === 'approval' && (
           <div>
             <h1 style={{fontFamily:'Georgia,serif',fontSize:25,fontWeight:700,color:DARK,marginBottom:6}}>Data approval</h1>
-            <p style={{fontSize:14,color:BODY_TEXT,marginBottom:20}}>Tick or reject each KPI and CX theme. Generate and edit the Verdict before approving. Hit Submit to publish to client dashboard.</p>
+            <p style={{fontSize:14,color:BODY_TEXT,marginBottom:20}}>Tick or reject each KPI and CX theme. Write the Verdict before approving. Hit Submit to publish to client dashboard.</p>
 
             {/* IQ */}
             <div style={{marginBottom:32}}>
@@ -576,7 +664,6 @@ export default function AdminPage() {
 
                     return (
                       <div key={audit.id} style={{background:WHITE,border:`1px solid ${BORDER}`,borderRadius:12,padding:'20px 24px'}}>
-
                         <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:16}}>
                           <div>
                             <span style={{fontSize:15,fontWeight:700,color:DARK}}>{getBrandName(audit.brand_id)}</span>
@@ -667,6 +754,7 @@ export default function AdminPage() {
                           </div>
                         )}
 
+                        {/* Verdict — write manually */}
                         <div style={{borderTop:`1px solid ${BORDER}`,paddingTop:16,marginBottom:16}}>
                           <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:12}}>
                             <div style={{fontSize:11,fontWeight:600,color:GOLD,textTransform:'uppercase',letterSpacing:'0.1em'}}>Solomon&apos;s Eye Verdict</div>
@@ -697,8 +785,19 @@ export default function AdminPage() {
                               )}
                             </div>
                           ) : (
-                            <div style={{fontSize:13,color:'#aaa',fontStyle:'italic'}}>
-                              Click &quot;Generate verdict&quot; to auto-generate theme verdicts and overall Eye Verdict from the signal data. You can edit before approving.
+                            <div style={{display:'flex',flexDirection:'column',gap:10}}>
+                              <div style={{fontSize:12,color:'#aaa',fontStyle:'italic',marginBottom:4}}>
+                                Write your own verdict below — or click Generate to auto-create from signal data.
+                              </div>
+                              <div style={{background:'rgba(201,168,76,0.06)',border:`1px solid rgba(201,168,76,0.2)`,borderRadius:8,padding:'12px 14px'}}>
+                                <div style={{fontSize:10,fontWeight:600,color:GOLD,textTransform:'uppercase',letterSpacing:'0.1em',marginBottom:6}}>Overall Eye Verdict</div>
+                                <textarea
+                                  placeholder="Write your verdict here — what happened, why, and what the client should do next..."
+                                  value={auditVerdicts[audit.id]?.overall_verdict || ''}
+                                  onChange={e => setAuditVerdicts(prev => ({...prev,[audit.id]:{...prev[audit.id] || {}, overall_verdict: e.target.value}}))}
+                                  rows={4}
+                                  style={{width:'100%',padding:'8px 10px',border:`1px solid rgba(201,168,76,0.3)`,borderRadius:6,fontSize:13,color:DARK,fontFamily:'Georgia,serif',fontStyle:'italic',resize:'vertical',lineHeight:1.7}}/>
+                              </div>
                             </div>
                           )}
                         </div>
