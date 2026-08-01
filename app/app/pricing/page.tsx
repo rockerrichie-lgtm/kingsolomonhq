@@ -13,17 +13,23 @@ const MID_GREEN = '#1F4A2F'
 const CARD_BG = '#FDFAF3'
 const PURPLE = '#9F8FEF'
 
-function BtnPrimary({ text, plan }: { text: string; plan: string }) {
-  const href = plan === 'connect' ? '/connect' : `/checkout?plan=${plan}`
+const CALENDLY = 'https://calendly.com/hello-kingsolomonhq/30min'
+
+function BtnPrimary({ text }: { text: string }) {
   return (
-    <a href={href} style={{display:'block',padding:'10px',borderRadius:8,textAlign:'center',fontSize:13,fontWeight:600,background:GOLD,color:DEEP,textDecoration:'none',marginBottom:16}}>{text}</a>
+    <a href={CALENDLY} target="_blank" rel="noopener noreferrer"
+      style={{display:'block',padding:'10px',borderRadius:8,textAlign:'center',fontSize:13,fontWeight:600,background:GOLD,color:DEEP,textDecoration:'none',marginBottom:16}}>
+      {text}
+    </a>
   )
 }
 
-function BtnGhost({ text, plan }: { text: string; plan: string }) {
-  const href = plan === 'connect' ? '/connect' : `/checkout?plan=${plan}`
+function BtnGhost({ text }: { text: string }) {
   return (
-    <a href={href} style={{display:'block',padding:'10px',borderRadius:8,textAlign:'center',fontSize:13,fontWeight:600,background:WHITE,color:DARK,border:`1px solid ${BORDER}`,textDecoration:'none',marginBottom:16}}>{text}</a>
+    <a href={CALENDLY} target="_blank" rel="noopener noreferrer"
+      style={{display:'block',padding:'10px',borderRadius:8,textAlign:'center',fontSize:13,fontWeight:600,background:WHITE,color:DARK,border:`1px solid ${BORDER}`,textDecoration:'none',marginBottom:16}}>
+      {text}
+    </a>
   )
 }
 
@@ -80,7 +86,7 @@ function IQPricing() {
       <Card>
         <Lbl text="Insight" />
         <div style={{fontSize:14,color:BODY_TEXT,marginBottom:14,lineHeight:1.6}}>A full point-in-time brand health snapshot.</div>
-        <BtnGhost text="Get a report" plan="insight_iq" />
+        <BtnGhost text="Book a call" />
         <Price amount="599" billing="One-time" saving="per report" />
         <Divider />
         <Feat text="All 5 KPIs tracked" />
@@ -93,7 +99,7 @@ function IQPricing() {
         <Badge text="Most popular" color={DEEP} bg={GOLD} border="none" />
         <Lbl text="Growth" />
         <div style={{fontSize:14,color:BODY_TEXT,marginBottom:14,lineHeight:1.6}}>Continuous tracking with reports every 6 months.</div>
-        <BtnPrimary text="Start tracking" plan="growth_iq" />
+        <BtnPrimary text="Book a call" />
         <Price amount="3,599" color={GOLD} billing="Billed every 6 months" saving="$1,799 per report · saves $400 vs 2 x Insight" />
         <Divider />
         <Feat text="Continuous 6-month tracking" />
@@ -107,7 +113,7 @@ function IQPricing() {
         <Badge text="Best value per report" color={MID_GREEN} bg="rgba(31,74,47,0.08)" border="1px solid rgba(31,74,47,0.2)" />
         <Lbl text="Command" />
         <div style={{fontSize:14,color:BODY_TEXT,marginBottom:14,lineHeight:1.6}}>Quarterly reports timed to your board cycles.</div>
-        <BtnGhost text="Get quarterly reporting" plan="command_iq" />
+        <BtnGhost text="Book a call" />
         <Price amount="2,799" billing="Billed per quarter" saving="$699 per report · saves $1,597 vs 4 x Insight" />
         <Divider />
         <Feat text="Everything in Growth" color={MID_GREEN} />
@@ -130,7 +136,7 @@ function EyePricing() {
         <Card>
           <Lbl text="Insight" />
           <div style={{fontSize:14,color:BODY_TEXT,marginBottom:14,lineHeight:1.6}}>One-time CX audit of your brand experience.</div>
-          <BtnGhost text="Book a CX audit" plan="insight_eye" />
+          <BtnGhost text="Book a call" />
           <Price amount="1,499" billing="One-time" saving="per audit" />
           <Divider />
           <Feat text="Full CX walkthrough: app, web, purchase flow" />
@@ -143,7 +149,7 @@ function EyePricing() {
           <Badge text="Most popular" color={DEEP} bg={GOLD} border="none" />
           <Lbl text="Growth" />
           <div style={{fontSize:14,color:BODY_TEXT,marginBottom:14,lineHeight:1.6}}>Two audits across 6 months to track your CX improvement.</div>
-          <BtnPrimary text="Start CX tracking" plan="growth_eye" />
+          <BtnPrimary text="Book a call" />
           <Price amount="5,999" color={GOLD} billing="Billed every 6 months" saving="$2,999 per audit · saves $999 vs 2 x Insight" />
           <Divider />
           <Feat text="Two full CX audits across 6 months" />
@@ -156,7 +162,7 @@ function EyePricing() {
           <Badge text="Best value per audit" color={MID_GREEN} bg="rgba(31,74,47,0.08)" border="1px solid rgba(31,74,47,0.2)" />
           <Lbl text="Command" />
           <div style={{fontSize:14,color:BODY_TEXT,marginBottom:14,lineHeight:1.6}}>Quarterly CX audits timed to your business reviews.</div>
-          <BtnGhost text="Get quarterly audits" plan="command_eye" />
+          <BtnGhost text="Book a call" />
           <Price amount="4,999" billing="Billed per quarter" saving="$1,249 per audit · saves $3,996 vs 4 x Insight" />
           <Divider />
           <Feat text="Everything in Growth" color={MID_GREEN} />
@@ -180,7 +186,7 @@ function GuidePricing() {
         <Card>
           <Lbl text="Clarity" color={PURPLE} />
           <div style={{fontSize:14,color:BODY_TEXT,marginBottom:14,lineHeight:1.6}}>Structured sessions with async support.</div>
-          <BtnGhost text="Start with Clarity" plan="connect" />
+          <BtnGhost text="Book a call" />
           <Price amount="2,997" billing="Billed per quarter" saving="$500 per session · 6 sessions" />
           <Divider />
           <Feat text="2 structured sessions per month" color={PURPLE} />
@@ -193,7 +199,7 @@ function GuidePricing() {
           <Badge text="Most popular" color={DEEP} bg={GOLD} border="none" />
           <Lbl text="Growth" color={PURPLE} />
           <div style={{fontSize:14,color:BODY_TEXT,marginBottom:14,lineHeight:1.6}}>Full async access with monthly strategy reviews.</div>
-          <BtnPrimary text="Start with Growth" plan="connect" />
+          <BtnPrimary text="Book a call" />
           <Price amount="7,497" color={GOLD} billing="Billed per quarter" saving="$625 per session · 12 sessions + full async" />
           <Divider />
           <Feat text="4 sessions per month (12 per quarter)" color={PURPLE} />
@@ -206,7 +212,7 @@ function GuidePricing() {
           <Badge text="Fully embedded" color={PURPLE} bg="rgba(159,143,239,0.08)" border="1px solid rgba(159,143,239,0.2)" />
           <Lbl text="Command" color={PURPLE} />
           <div style={{fontSize:14,color:BODY_TEXT,marginBottom:14,lineHeight:1.6}}>On-call strategic partner for board-level decisions.</div>
-          <BtnGhost text="Start with Command" plan="connect" />
+          <BtnGhost text="Book a call" />
           <Price amount="14,997" billing="Billed per quarter" saving="Weekly sessions · on-call access within 4 hrs" />
           <Divider />
           <Feat text="13 sessions per quarter" color={PURPLE} />
@@ -264,7 +270,6 @@ export default function PricingPage() {
       <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
       <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,700;0,800;1,700&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet" />
 
-      {/* NAV — dark green */}
       <nav style={{position:'fixed',top:0,left:0,right:0,zIndex:100,display:'flex',alignItems:'center',justifyContent:'space-between',padding:'14px 48px',background:DEEP,borderBottom:'1px solid rgba(255,255,255,0.06)'}}>
         <a href="/" style={{display:'flex',alignItems:'center',gap:10}}>
           <svg width="24" height="19" viewBox="0 0 56 44" fill="none"><path d="M4 36L12 14L22 26L28 6L34 26L44 14L52 36H4Z" fill="#C9A84C"/><rect x="4" y="36" width="48" height="6" rx="2" fill="#A07830"/></svg>
@@ -276,11 +281,10 @@ export default function PricingPage() {
         <div style={{display:'flex',alignItems:'center',gap:24}}>
           <a href="/" style={{color:CREAM_DIM,fontSize:14}}>Home</a>
           <a href="/login" style={{color:CREAM_DIM,fontSize:14}}>Login</a>
-          <a href="/pricing" style={{background:GOLD,color:DEEP,fontSize:14,fontWeight:600,padding:'10px 22px',borderRadius:6}}>Start tracking</a>
+          <a href={CALENDLY} target="_blank" rel="noopener noreferrer" style={{background:GOLD,color:DEEP,fontSize:14,fontWeight:600,padding:'10px 22px',borderRadius:6}}>Book a call</a>
         </div>
       </nav>
 
-      {/* HERO — white */}
       <section style={{background:WHITE,textAlign:'center',padding:'120px 24px 48px',borderBottom:`1px solid ${BORDER}`}}>
         <p style={{fontSize:11,fontWeight:600,letterSpacing:'0.18em',textTransform:'uppercase',color:GOLD,marginBottom:14}}>Pricing</p>
         <h1 style={{fontFamily:'Playfair Display,serif',fontSize:25,fontWeight:800,lineHeight:1.2,color:DARK,marginBottom:12}}>Simple pricing.<br/>Real intelligence.</h1>
@@ -295,17 +299,14 @@ export default function PricingPage() {
         </div>
       </section>
 
-      {/* PLANS — white */}
       <section style={{padding:'48px 24px',maxWidth:1100,margin:'0 auto'}}>
         {activeTab === 'iq' ? <IQPricing /> : activeTab === 'eye' ? <EyePricing /> : <GuidePricing />}
       </section>
 
-      {/* FAQ — white */}
       <section style={{padding:'0 24px',maxWidth:1100,margin:'0 auto'}}>
         <FAQ activeTab={activeTab} />
       </section>
 
-      {/* BOTTOM CTA — dark green */}
       <section style={{background:DEEP,padding:'56px 24px',textAlign:'center'}}>
         <h2 style={{fontFamily:'Playfair Display,serif',fontSize:25,fontWeight:700,color:CREAM,marginBottom:12,lineHeight:1.3}}>
           {activeTab === 'guide' ? <>Not sure which tier fits?<br/>Let&apos;s talk it through.</> : <>Start with one report.<br/>Stay for the intelligence.</>}
@@ -313,10 +314,9 @@ export default function PricingPage() {
         <p style={{fontSize:15,color:CREAM_DIM,maxWidth:420,margin:'0 auto 32px',lineHeight:1.75}}>
           {activeTab === 'guide' ? "Book a 30-minute call and we'll figure out the right level of engagement." : "Book a 30-minute call and we'll show you what we find about your brand before you spend a rupee."}
         </p>
-        <a href="/connect" style={{display:'inline-block',background:GOLD,color:DEEP,fontSize:14,fontWeight:600,padding:'13px 32px',borderRadius:8}}>Connect with Us!</a>
+        <a href={CALENDLY} target="_blank" rel="noopener noreferrer" style={{display:'inline-block',background:GOLD,color:DEEP,fontSize:14,fontWeight:600,padding:'13px 32px',borderRadius:8}}>Book a 30-minute call</a>
       </section>
 
-      {/* FOOTER — dark green */}
       <footer style={{background:DEEP,borderTop:'1px solid rgba(255,255,255,0.06)',padding:'28px 48px',display:'flex',alignItems:'center',justifyContent:'space-between',flexWrap:'wrap',gap:14}}>
         <div style={{fontFamily:'Playfair Display,serif',fontSize:14,fontWeight:700,color:CREAM,letterSpacing:'0.08em'}}>KING SOLOMON</div>
         <div style={{display:'flex',gap:24}}>
