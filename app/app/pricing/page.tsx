@@ -92,7 +92,7 @@ function IQPricing() {
         <Feat text="All 5 KPIs tracked" />
         <Feat text="Competitor landscape included" />
         <Feat text="Solomon's Verdict narrative" />
-        <Feat text="PDF and PPT in 5 days" />
+        <Feat text="PDF and PPT in 3 days" />
         <Feat text="Upgrade credit to Growth" />
       </Card>
       <Card featured>
@@ -100,7 +100,7 @@ function IQPricing() {
         <Lbl text="Growth" />
         <div style={{fontSize:14,color:BODY_TEXT,marginBottom:14,lineHeight:1.6}}>Continuous tracking with reports every 6 months.</div>
         <BtnPrimary text="Book a call" />
-        <Price amount="3,599" color={GOLD} billing="Billed every 6 months" saving="$1,799 per report · saves $400 vs 2 x Insight" />
+        <Price amount="3,599" color={GOLD} billing="Billed every 6 months" saving="$1,799 per report · includes live dashboard and continuous tracking" />
         <Divider />
         <Feat text="Continuous 6-month tracking" />
         <Feat text="Live dashboard access" />
@@ -114,7 +114,7 @@ function IQPricing() {
         <Lbl text="Command" />
         <div style={{fontSize:14,color:BODY_TEXT,marginBottom:14,lineHeight:1.6}}>Quarterly reports timed to your board cycles.</div>
         <BtnGhost text="Book a call" />
-        <Price amount="2,799" billing="Billed per quarter" saving="$699 per report · saves $1,597 vs 4 x Insight" />
+        <Price amount="2,799" billing="Billed per quarter" saving="$699 per report · quarterly cadence with live dashboard access" />
         <Divider />
         <Feat text="Everything in Growth" color={MID_GREEN} />
         <Feat text="4 quarterly reports per year" color={MID_GREEN} />
@@ -143,7 +143,7 @@ function EyePricing() {
           <Feat text="Screen recording with expert commentary" />
           <Feat text="Written findings: PDF and PPT" />
           <Feat text="Top 5 friction points identified" />
-          <Feat text="Delivered in 7 business days" />
+          <Feat text="Delivered in 3 business days" />
         </Card>
         <Card featured>
           <Badge text="Most popular" color={DEEP} bg={GOLD} border="none" />
