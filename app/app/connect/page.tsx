@@ -13,8 +13,8 @@ const BORDER = '#f0f0f0'
 const MID_GREEN = '#1F4A2F'
 const CARD_BG = '#FDFAF3'
 
-const SUPABASE_URL = 'https://alrwyeenxeuxgkcskkes.supabase.co'
-const SUPABASE_KEY = 'sb_publishable_o1j3z16rgfySe5QnJgMHyQ_iR0sGvme'
+const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://alrwyeenxeuxgkcskkes.supabase.co'
+const SUPABASE_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ''
 
 export default function ConnectPage() {
   const [name, setName] = useState('')
