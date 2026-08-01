@@ -62,15 +62,15 @@ export default function Home() {
         <p style={{fontSize:11,fontWeight:600,letterSpacing:'0.18em',textTransform:'uppercase',color:GOLD,textAlign:'center',marginBottom:24}}>Three ways we help</p>
         <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(300px,1fr))',gap:16}}>
           {[
-            {label:"Solomon's IQ",labelColor:GOLD,title:'Brand intelligence',desc:"Real-time scores across Awareness, Consideration, Usage, Imagery and Buzz. Updated every 2 to 6 hours. A fraction of traditional trackers.",price:'From $599, one-time report',priceColor:GOLD,featured:false},
-            {label:"Solomon's Eye",labelColor:MID_GREEN,title:'CX audit',desc:'A personal walkthrough of your customer experience, screen-recorded with expert commentary and a written report.',price:'From $1,499, one-time audit',priceColor:MID_GREEN,featured:true},
-            {label:"Solomon's Guide",labelColor:'#888',title:'Strategic advisory',desc:'John works with you through your entire growth journey. Fully embedded, on-call, invested in your outcome.',price:'From $2,997 per quarter',priceColor:'#888',featured:false},
+            {label:"Solomon's IQ",labelColor:GOLD,title:'Brand intelligence',desc:"Real-time scores across Awareness, Consideration, Usage, Imagery and Buzz. Delivered within 3 days. A fraction of traditional trackers.",price:'',priceColor:GOLD,featured:false},
+            {label:"Solomon's Eye",labelColor:MID_GREEN,title:'CX audit',desc:'A personal walkthrough of your customer experience, screen-recorded with expert commentary and a written report.',price:'',priceColor:MID_GREEN,featured:true},
+            {label:"Solomon's Guide",labelColor:'#888',title:'Strategic advisory',desc:'John works with you through your entire growth journey. Fully embedded, on-call, invested in your outcome.',price:'',priceColor:'#888',featured:false},
           ].map(s => (
             <div key={s.label} style={{background:s.featured?CARD_BG:WHITE,border:`1px solid ${s.featured?'rgba(201,168,76,0.3)':BORDER}`,borderRadius:12,padding:'24px 20px'}}>
               <p style={{fontSize:11,fontWeight:600,letterSpacing:'0.12em',textTransform:'uppercase',color:s.labelColor,marginBottom:8}}>{s.label}</p>
               <h3 style={{fontFamily:'Playfair Display,serif',fontSize:18,fontWeight:700,color:DARK,marginBottom:10}}>{s.title}</h3>
               <p style={{fontSize:15,color:BODY_TEXT,lineHeight:1.75,marginBottom:16}}>{s.desc}</p>
-              <a href="/pricing" style={{fontSize:13,color:s.priceColor,fontWeight:500}}>{s.price} →</a>
+              <a href="/pricing" style={{fontSize:13,color:s.priceColor,fontWeight:500}}>See pricing →</a>
             </div>
           ))}
         </div>
@@ -84,7 +84,7 @@ export default function Home() {
         <h2 style={{fontFamily:'Playfair Display,serif',fontSize:25,fontWeight:700,color:DARK,textAlign:'center',marginBottom:32,lineHeight:1.3}}>Faster answers. Lower cost.<br/>No agency overhead.</h2>
         <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(280px,1fr))',gap:16}}>
           {[
-            {stat:'2 hrs',title:'Fastest update cycle',desc:"Buzz scores refresh every 2 hours. Traditional trackers report monthly. You see shifts the day they happen."},
+            {stat:'3 days',title:'Fastest turnaround',desc:"Brand health reports delivered in 3 days. Traditional trackers take weeks. You see what is happening before your competitors do."},
             {stat:'90%',title:'Lower than agency cost',desc:"Kantar and YouGov charge $25K to $150K per year. Solomon's IQ starts at $599 for a full brand health report."},
             {stat:'5 KPIs',title:'In one verdict',desc:"Awareness, Consideration, Usage, Imagery and Buzz tracked together with competitor context and a recommended action."},
           ].map(s => (
