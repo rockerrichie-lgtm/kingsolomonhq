@@ -26,11 +26,11 @@ const ZONE_COLOR: Record<string, string> = {
   established: GREEN, category_defining: GREEN,
 }
 const KPI_DESCRIPTION: Record<string, string> = {
-  awareness: 'Measures the share of organic search presence and brand mention volume relative to category competitors.',
-  consideration: 'Tracks active purchase-intent signals — comparison queries, review searches, and price checks — indicating consumers evaluating the brand.',
-  usage: 'Reflects post-purchase sentiment from verified reviews and user-generated content across platforms.',
-  imagery: 'NLP-derived score measuring the alignment between consumer language about the brand and desired brand attributes.',
-  buzz: 'Net sentiment score across all social platforms — positive signals minus negative signals on a -100 to +100 scale.',
+  awareness: 'Measures the share of organic search presence and brand mention volume relative to category competitors. Split into Searched (spontaneous recall), Found (aided discovery) and Shown (media reach).',
+  consideration: 'Tracks active purchase-intent signals — comparison queries, review searches, and first-time trial signals — indicating consumers evaluating the brand. Split into Comparing, Trialling and Interested.',
+  usage: 'Reflects post-purchase sentiment from verified reviews and user-generated content across platforms. Split into Repeat (loyalty), Lost (churn) and Switchers (diagnostic).',
+  imagery: 'NLP-derived score measuring the alignment between consumer language about the brand and desired brand attributes. Positive and negative attribute language shown separately.',
+  buzz: 'Net sentiment score across all social platforms. Split into Praising (advocacy), Questioning (pre-crisis signal) and Attacking (negative advocacy).',
 }
 const KPI_ACTION: Record<string, string> = {
   awareness: 'Invest in top-of-funnel search presence and organic keyword share to build category visibility.',
@@ -39,12 +39,62 @@ const KPI_ACTION: Record<string, string> = {
   imagery: 'Align brand communication with the language consumers already use — amplify positive attribute signals.',
   buzz: 'Monitor net sentiment weekly. Respond to negative surges within 12 hours before narratives solidify.',
 }
-const KPI_SUB_BUCKETS: Record<string, { key: string; label: string }[]> = {
-  awareness: [{key:'sub_bucket_searched',label:'Searched'},{key:'sub_bucket_found',label:'Found'},{key:'sub_bucket_shown',label:'Shown'}],
-  consideration: [{key:'sub_bucket_comparing',label:'Comparing'},{key:'sub_bucket_trialling',label:'Trialling'},{key:'sub_bucket_interested',label:'Interested'}],
-  usage: [{key:'sub_bucket_repeat',label:'Repeat'},{key:'sub_bucket_switchers',label:'Switchers'},{key:'sub_bucket_lost',label:'Lost'}],
+
+const KPI_SUB_BUCKETS: Record<string, { key: string; label: string; desc: string; diagnostic?: boolean }[]> = {
+  awareness: [
+    {key:'sub_bucket_searched', label:'Searched', desc:'Spontaneous recall proxy — consumer typed the brand name unprompted'},
+    {key:'sub_bucket_found', label:'Found', desc:'Aided discovery proxy — consumer searched category and found the brand'},
+    {key:'sub_bucket_shown', label:'Shown', desc:'Media reach proxy — brand appeared in consumer feed without being searched'},
+  ],
+  consideration: [
+    {key:'sub_bucket_comparing', label:'Comparing', desc:'Consumer actively comparing brand vs alternatives'},
+    {key:'sub_bucket_trialling', label:'Trialling', desc:'Consumer has moved to first-time trial or purchase intent'},
+    {key:'sub_bucket_interested', label:'Interested', desc:'Passive interest — aware and curious but not yet evaluating'},
+  ],
+  usage: [
+    {key:'sub_bucket_repeat', label:'Repeat', desc:'Loyalty signals — habitual repurchase and regular usage language'},
+    {key:'sub_bucket_lost', label:'Lost', desc:'Churn signals — discontinued use, cancelled, never again language'},
+    {key:'sub_bucket_switchers', label:'Switchers', desc:'Diagnostic only — users who came from or moved to a competitor', diagnostic:true},
+  ],
   imagery: [],
-  buzz: [{key:'sub_bucket_praising',label:'Praising'},{key:'sub_bucket_questioning',label:'Questioning'},{key:'sub_bucket_attacking',label:'Attacking'}],
+  buzz: [
+    {key:'sub_bucket_praising', label:'Praising', desc:'Active positive advocacy — recommending, celebrating, defending'},
+    {key:'sub_bucket_questioning', label:'Questioning', desc:'Pre-crisis signal — uncertainty forming before a verdict'},
+    {key:'sub_bucket_attacking', label:'Attacking', desc:'Active negative advocacy — criticism, avoidance, brand damage language'},
+  ],
+}
+
+const KPI_INTELLIGENCE: Record<string, (kpi: any) => string | null> = {
+  awareness: (kpi) => {
+    const s = kpi.sub_bucket_searched ?? 0
+    const sh = kpi.sub_bucket_shown ?? 0
+    if (sh > s + 15) return `Shown (${sh}) is outpacing Searched (${s}) — media reach is not converting to spontaneous recall. Brand distinctiveness investment needed before media scale.`
+    if (s > 60 && sh < 30) return `Searched (${s}) is strong but Shown (${sh}) is low — strong earned recall without paid media. Amplification would compound this advantage.`
+    return null
+  },
+  consideration: (kpi) => {
+    const c = kpi.sub_bucket_comparing ?? 0
+    const t = kpi.sub_bucket_trialling ?? 0
+    if (c > t + 10) return `Comparing (${c}) is strong but Trialling (${t}) is weak — consumers are evaluating but not converting to trial. First purchase friction is the critical intervention point.`
+    return null
+  },
+  usage: (kpi) => {
+    const r = kpi.sub_bucket_repeat ?? 0
+    const l = kpi.sub_bucket_lost ?? 0
+    const sw = kpi.sub_bucket_switchers ?? 0
+    if (l > r) return `Lost (${l}) exceeds Repeat (${r}) — acquiring but not retaining. Retention is the priority lever.`
+    if (sw > 30) return `Switchers (${sw}) above 30% — borrowed loyalty risk. A loyalty trigger within 60 days is critical.`
+    return null
+  },
+  imagery: (kpi) => null,
+  buzz: (kpi) => {
+    const p = kpi.sub_bucket_praising ?? 0
+    const q = kpi.sub_bucket_questioning ?? 0
+    const a = kpi.sub_bucket_attacking ?? 0
+    if (q > 30) return `Questioning (${q}) is elevated — pre-crisis signal. Questioning historically precedes Attacking by 6-12 hours. Identify the source of uncertainty now.`
+    if (a > p) return `Attacking (${a}) exceeds Praising (${p}) — active reputation risk. Crisis response protocol should be activated.`
+    return null
+  },
 }
 
 function scoreDisplay(kpiName: string, score: number) {
@@ -52,7 +102,7 @@ function scoreDisplay(kpiName: string, score: number) {
 }
 
 function subBucketColor(val: number | null | undefined) {
-  if (!val) return '#ccc'
+  if (val === null || val === undefined) return '#ccc'
   if (val >= 60) return GREEN
   if (val >= 40) return AMBER
   return RED
@@ -188,18 +238,37 @@ export default function IQReportPage() {
         <div style={{padding:'48px 64px',borderBottom:'4px solid #f0f0f0',pageBreakAfter:'always'}}>
           {pageHeader('Executive Summary')}
           <div style={{fontFamily:'Georgia, serif',fontSize:28,fontWeight:700,color:DARK,marginBottom:6}}>Executive Summary</div>
-          <div style={{fontSize:13,color:BODY_TEXT,marginBottom:32}}>Brand health overview across all five KPIs — {reportDate}</div>
+          <div style={{fontSize:13,color:BODY_TEXT,marginBottom:32}}>Brand health overview across all five KPI families — {reportDate}</div>
 
           <div style={{display:'grid',gridTemplateColumns:'repeat(5,1fr)',gap:12,marginBottom:32}}>
             {KPI_NAMES.map(kpiName => {
               const kpi = getBrandKpi(kpiName)
               const zoneColor = kpi ? ZONE_COLOR[kpi.zone] : '#ccc'
+              const subs = KPI_SUB_BUCKETS[kpiName]
               return (
                 <div key={kpiName} style={{padding:'16px 12px',borderRadius:8,background:'#f9f9f9',borderTop:`4px solid ${zoneColor}`,textAlign:'center'}}>
                   <div style={{fontSize:9,fontWeight:700,color:GOLD,textTransform:'uppercase',letterSpacing:'0.15em',marginBottom:8}}>{kpiName}</div>
-                  <div style={{fontFamily:'Georgia, serif',fontSize:32,fontWeight:700,color:DARK,marginBottom:4}}>
-                    {kpi ? scoreDisplay(kpiName, kpi.score) : '--'}
-                  </div>
+                  {subs.length > 0 ? (
+                    <div style={{display:'flex',flexDirection:'column',gap:5,marginBottom:6}}>
+                      {subs.map(sb => {
+                        const val = kpi ? (kpi as any)[sb.key] ?? null : null
+                        const color = subBucketColor(val)
+                        return (
+                          <div key={sb.key} style={{display:'flex',alignItems:'center',justifyContent:'space-between',gap:4}}>
+                            <div style={{display:'flex',alignItems:'center',gap:4}}>
+                              <div style={{width:5,height:5,borderRadius:'50%',background:color,flexShrink:0}}/>
+                              <span style={{fontSize:9,color:sb.diagnostic?'#aaa':BODY_TEXT}}>{sb.label}</span>
+                            </div>
+                            <span style={{fontSize:10,fontWeight:600,color}}>{val ?? '--'}</span>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  ) : (
+                    <div style={{fontFamily:'Georgia, serif',fontSize:28,fontWeight:700,color:DARK,marginBottom:4}}>
+                      {kpi ? scoreDisplay(kpiName, kpi.score) : '--'}
+                    </div>
+                  )}
                   <div style={{fontSize:10,color:zoneColor,fontWeight:600}}>{kpi ? ZONE_LABEL[kpi.zone] : 'No data'}</div>
                   {kpi?.movement !== null && kpi?.movement !== undefined && (
                     <div style={{fontSize:10,color:kpi.movement > 0 ? GREEN : kpi.movement < 0 ? RED : AMBER,marginTop:4}}>
@@ -240,7 +309,7 @@ export default function IQReportPage() {
         <div style={{padding:'48px 64px',borderBottom:'4px solid #f0f0f0',pageBreakAfter:'always'}}>
           {pageHeader('Competitive Landscape')}
           <div style={{fontFamily:'Georgia, serif',fontSize:28,fontWeight:700,color:DARK,marginBottom:6}}>Competitive Landscape</div>
-          <div style={{fontSize:13,color:BODY_TEXT,marginBottom:24}}>All brands compared across all five KPIs. Differences of 8+ points with structural zone difference are directionally significant.</div>
+          <div style={{fontSize:13,color:BODY_TEXT,marginBottom:24}}>All brands compared across all five KPI families. Differences of 8+ points are directionally significant.</div>
 
           <table style={{width:'100%',borderCollapse:'collapse',fontSize:13,marginBottom:24}}>
             <thead>
@@ -256,9 +325,24 @@ export default function IQReportPage() {
                 </td>
                 {KPI_NAMES.map(kpiName => {
                   const kpi = getBrandKpi(kpiName)
+                  const subs = KPI_SUB_BUCKETS[kpiName]
                   return (
-                    <td key={kpiName} style={{textAlign:'center',padding:'14px 10px',fontWeight:700,color:DARK,fontFamily:'Georgia, serif',fontSize:16}}>
-                      {kpi ? scoreDisplay(kpiName, kpi.score) : '--'}
+                    <td key={kpiName} style={{textAlign:'center',padding:'14px 10px',color:DARK}}>
+                      {subs.length > 0 ? (
+                        <div style={{display:'flex',flexDirection:'column',gap:2}}>
+                          {subs.map(sb => {
+                            const val = kpi ? (kpi as any)[sb.key] ?? null : null
+                            return (
+                              <div key={sb.key} style={{display:'flex',alignItems:'center',justifyContent:'center',gap:3}}>
+                                <span style={{fontSize:8,color:'#aaa'}}>{sb.label.slice(0,3)}</span>
+                                <span style={{fontSize:10,fontWeight:600,color:subBucketColor(val)}}>{val ?? '--'}</span>
+                              </div>
+                            )
+                          })}
+                        </div>
+                      ) : (
+                        <span style={{fontFamily:'Georgia, serif',fontSize:16,fontWeight:700}}>{kpi ? scoreDisplay(kpiName, kpi.score) : '--'}</span>
+                      )}
                     </td>
                   )
                 })}
@@ -303,6 +387,7 @@ export default function IQReportPage() {
           const zoneColor = kpi ? ZONE_COLOR[kpi.zone] : '#ccc'
           const subBuckets = KPI_SUB_BUCKETS[kpiName]
           const maxScore = Math.max(kpi?.score || 0, ...competitors.map(c => getCompKpi(c.id, kpiName)?.score || 0), 50)
+          const intel = kpi ? KPI_INTELLIGENCE[kpiName]?.(kpi) : null
           return (
             <div key={kpiName} style={{padding:'48px 64px',borderBottom:'4px solid #f0f0f0',pageBreakAfter:'always'}}>
               {pageHeader(`${kpiName.charAt(0).toUpperCase() + kpiName.slice(1)} Deep Dive`)}
@@ -329,17 +414,22 @@ export default function IQReportPage() {
                 </div>
               </div>
 
+              {/* Sub-bucket breakdown */}
               {subBuckets.length > 0 && (
-                <div style={{marginBottom:24,padding:'16px',background:'#f9f9f9',borderRadius:8}}>
-                  <div style={{fontSize:10,fontWeight:600,color:BODY_TEXT,textTransform:'uppercase',letterSpacing:'0.1em',marginBottom:12}}>Signal breakdown</div>
-                  <div style={{display:'flex',gap:20}}>
+                <div style={{marginBottom:24,padding:'16px 20px',background:'#f9f9f9',borderRadius:8}}>
+                  <div style={{fontSize:10,fontWeight:600,color:BODY_TEXT,textTransform:'uppercase',letterSpacing:'0.1em',marginBottom:14}}>Signal breakdown</div>
+                  <div style={{display:'grid',gridTemplateColumns:`repeat(${subBuckets.length},1fr)`,gap:12}}>
                     {subBuckets.map(sb => {
-                      const val = kpi ? (kpi as any)[sb.key] : null
+                      const val = kpi ? (kpi as any)[sb.key] ?? null : null
+                      const color = subBucketColor(val)
                       return (
-                        <div key={sb.key} style={{display:'flex',alignItems:'center',gap:6}}>
-                          <div style={{width:8,height:8,borderRadius:'50%',background:subBucketColor(val)}}/>
-                          <span style={{fontSize:12,color:BODY_TEXT}}>{sb.label}</span>
-                          {val !== null && val !== undefined && <span style={{fontSize:12,fontWeight:600,color:subBucketColor(val)}}>{val}</span>}
+                        <div key={sb.key} style={{textAlign:'center',padding:'12px',background:WHITE,borderRadius:8,border:`1px solid ${BORDER}`,borderTop:`3px solid ${color}`}}>
+                          <div style={{fontSize:9,fontWeight:600,color:GOLD,textTransform:'uppercase',letterSpacing:'0.1em',marginBottom:4}}>
+                            {sb.label}
+                            {sb.diagnostic && <span style={{color:'#aaa',fontWeight:400,marginLeft:4}}>diag.</span>}
+                          </div>
+                          <div style={{fontFamily:'Georgia, serif',fontSize:28,fontWeight:700,color,marginBottom:4}}>{val ?? '--'}</div>
+                          <div style={{fontSize:9,color:'#aaa',lineHeight:1.4}}>{sb.desc}</div>
                         </div>
                       )
                     })}
@@ -347,6 +437,15 @@ export default function IQReportPage() {
                 </div>
               )}
 
+              {/* Intelligence signal */}
+              {intel && (
+                <div style={{marginBottom:24,padding:'12px 16px',background:'rgba(201,168,76,0.06)',border:'1px solid rgba(201,168,76,0.25)',borderRadius:8,borderLeft:`3px solid ${GOLD}`}}>
+                  <div style={{fontSize:9,fontWeight:700,color:GOLD,textTransform:'uppercase',letterSpacing:'0.1em',marginBottom:4}}>Intelligence signal</div>
+                  <div style={{fontSize:12,color:DARK,lineHeight:1.6}}>{intel}</div>
+                </div>
+              )}
+
+              {/* Buzz word clouds */}
               {kpiName === 'buzz' && (kpi?.positive_keywords || kpi?.negative_keywords) && (
                 <div style={{marginBottom:24,display:'grid',gridTemplateColumns:'1fr 1fr',gap:16}}>
                   {kpi?.positive_keywords && (
@@ -354,7 +453,7 @@ export default function IQReportPage() {
                       <div style={{fontSize:10,fontWeight:600,color:GREEN,textTransform:'uppercase',letterSpacing:'0.1em',marginBottom:10}}>Positive signals</div>
                       <div style={{display:'flex',flexWrap:'wrap',gap:6}}>
                         {kpi.positive_keywords.split(',').map((w: string, i: number) => (
-                          <span key={`pos-${i}`} style={{fontSize:Math.max(11, 20 - i * 1.2),fontWeight:i < 3 ? 700 : 400,color:GREEN,opacity:Math.max(0.5, 1 - i * 0.06)}}>{w.trim()}</span>
+                          <span key={i} style={{fontSize:Math.max(11, 20 - i * 1.2),fontWeight:i < 3 ? 700 : 400,color:GREEN,opacity:Math.max(0.5, 1 - i * 0.06)}}>{w.trim()}</span>
                         ))}
                       </div>
                     </div>
@@ -364,7 +463,7 @@ export default function IQReportPage() {
                       <div style={{fontSize:10,fontWeight:600,color:RED,textTransform:'uppercase',letterSpacing:'0.1em',marginBottom:10}}>Negative signals</div>
                       <div style={{display:'flex',flexWrap:'wrap',gap:6}}>
                         {kpi.negative_keywords.split(',').map((w: string, i: number) => (
-                          <span key={`neg-${i}`} style={{fontSize:Math.max(11, 20 - i * 1.2),fontWeight:i < 3 ? 700 : 400,color:RED,opacity:Math.max(0.5, 1 - i * 0.06)}}>{w.trim()}</span>
+                          <span key={i} style={{fontSize:Math.max(11, 20 - i * 1.2),fontWeight:i < 3 ? 700 : 400,color:RED,opacity:Math.max(0.5, 1 - i * 0.06)}}>{w.trim()}</span>
                         ))}
                       </div>
                     </div>
@@ -372,6 +471,7 @@ export default function IQReportPage() {
                 </div>
               )}
 
+              {/* Brand vs competition bars */}
               <div style={{marginBottom:24}}>
                 <div style={{fontSize:10,fontWeight:600,color:BODY_TEXT,textTransform:'uppercase',letterSpacing:'0.1em',marginBottom:12}}>Brand vs competition</div>
                 <div style={{marginBottom:8}}>
@@ -408,7 +508,7 @@ export default function IQReportPage() {
                 })}
               </div>
 
-              <div style={{borderLeft:`4px solid ${GOLD}`,paddingLeft:16,background:'rgba(201,168,76,0.04)',padding:'14px 16px',borderRadius:'0 8px 8px 0'}}>
+              <div style={{borderLeft:`4px solid ${GOLD}`,background:'rgba(201,168,76,0.04)',padding:'14px 16px',borderRadius:'0 8px 8px 0'}}>
                 <div style={{fontSize:10,fontWeight:700,color:GOLD,textTransform:'uppercase',letterSpacing:'0.1em',marginBottom:6}}>Priority action</div>
                 <p style={{fontSize:13,color:DARK,lineHeight:1.6,margin:0}}>{KPI_ACTION[kpiName]}</p>
               </div>
@@ -430,12 +530,27 @@ export default function IQReportPage() {
           {KPI_NAMES.map((kpiName, i) => {
             const kpi = getBrandKpi(kpiName)
             const zoneColor = kpi ? ZONE_COLOR[kpi.zone] : '#ccc'
+            const subs = KPI_SUB_BUCKETS[kpiName]
             return (
               <div key={kpiName} style={{marginBottom:20,padding:'16px 20px',borderRadius:8,background:'#f9f9f9',borderLeft:`4px solid ${zoneColor}`}}>
-                <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:8}}>
-                  <div style={{display:'flex',alignItems:'center',gap:10}}>
-                    <span style={{fontSize:10,fontWeight:700,color:GOLD,textTransform:'uppercase',letterSpacing:'0.15em'}}>{kpiName}</span>
-                    <span style={{fontSize:12,fontWeight:700,color:zoneColor}}>{kpi ? scoreDisplay(kpiName, kpi.score) : '--'} — {kpi ? ZONE_LABEL[kpi.zone] : '--'}</span>
+                <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:8}}>
+                  <div>
+                    <div style={{display:'flex',alignItems:'center',gap:10,marginBottom:6}}>
+                      <span style={{fontSize:10,fontWeight:700,color:GOLD,textTransform:'uppercase',letterSpacing:'0.15em'}}>{kpiName}</span>
+                      <span style={{fontSize:12,fontWeight:700,color:zoneColor}}>{kpi ? ZONE_LABEL[kpi.zone] : '--'}</span>
+                    </div>
+                    {subs.length > 0 && kpi && (
+                      <div style={{display:'flex',gap:12}}>
+                        {subs.map(sb => {
+                          const val = (kpi as any)[sb.key] ?? null
+                          return (
+                            <span key={sb.key} style={{fontSize:10,color:subBucketColor(val)}}>
+                              {sb.label}: <strong>{val ?? '--'}</strong>
+                            </span>
+                          )
+                        })}
+                      </div>
+                    )}
                   </div>
                   <span style={{fontSize:10,color:'#aaa'}}>Priority {i + 1}</span>
                 </div>

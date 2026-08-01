@@ -33,7 +33,7 @@ const THEME_ACTION: Record<string, string> = {
   'Collections': 'Review out-of-stock patterns and new launch communication — ensure range awareness matches availability.',
 }
 
-function npsColor(score: number | null, benchmark: number) {
+function scoreColor(score: number | null, benchmark: number) {
   if (score === null) return '#ccc'
   if (score >= benchmark) return GREEN
   if (score >= benchmark - 15) return AMBER
@@ -61,10 +61,11 @@ export default function EyeReportPage() {
       setBrand(brandData)
       const { data: auditData } = await supabase.from('cx_audits')
         .select('*').eq('brand_id', brandData.id).eq('status', 'published')
+        .is('competitor_id', null)
         .order('created_at', { ascending: false }).limit(1).maybeSingle()
       if (auditData) {
         setAudit(auditData)
-        const { data: themeData } = await supabase.from('cx_theme_scores').select('*').eq('audit_id', auditData.id)
+        const { data: themeData } = await supabase.from('cx_theme_scores').select('*').eq('audit_id', auditData.id).is('competitor_id', null)
         if (themeData) setThemes(themeData)
         const { data: verdictData } = await supabase.from('cx_verdicts').select('*').eq('audit_id', auditData.id).maybeSingle()
         if (verdictData) setCxVerdict(verdictData)
@@ -122,6 +123,7 @@ export default function EyeReportPage() {
   const sortedByNeg = [...themes].sort((a, b) => (b.negative_signal_count || 0) - (a.negative_signal_count || 0))
   const allPosKeywords = [...new Set(themes.flatMap(t => (t.positive_keywords || '').split(',').map((w: string) => w.trim()).filter(Boolean)))].slice(0, 15)
   const allNegKeywords = [...new Set(themes.flatMap(t => (t.negative_keywords || '').split(',').map((w: string) => w.trim()).filter(Boolean)))].slice(0, 15)
+  const benchmark = audit?.benchmark || 45
 
   const pageHeader = (title: string) => (
     <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:32,paddingBottom:12,borderBottom:`2px solid ${MID_GREEN}`}}>
@@ -129,6 +131,8 @@ export default function EyeReportPage() {
       <div style={{fontSize:11,color:'#aaa'}}>{title}</div>
     </div>
   )
+
+  const scoreStr = (v: number | null) => v === null ? '--' : v > 0 ? `+${v}` : String(v)
 
   return (
     <div style={{minHeight:'100vh',background:'#d8d5d0',padding:'32px 0'}}>
@@ -154,7 +158,7 @@ export default function EyeReportPage() {
             <div style={{display:'flex',gap:32}}>
               {[
                 {label:'Audit type', val:'Secondary'},
-                {label:'Benchmark', val:audit?.benchmark || 45},
+                {label:'Benchmark', val:benchmark},
                 {label:'Generated', val:reportDate},
                 {label:'Total signals', val:audit?.total_signals?.toLocaleString() || '--'},
               ].map(f => (
@@ -176,8 +180,8 @@ export default function EyeReportPage() {
 
           <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:16,marginBottom:32}}>
             {[
-              {label:'Overall CX NPS', val: audit?.overall_cx_nps !== null ? (audit.overall_cx_nps > 0 ? `+${audit.overall_cx_nps}` : String(audit.overall_cx_nps)) : '--', color: npsColor(audit?.overall_cx_nps, audit?.benchmark || 45)},
-              {label:'Benchmark', val: String(audit?.benchmark || 45), color: BODY_TEXT},
+              {label:'Overall CX Score', val: scoreStr(audit?.overall_cx_nps), color: scoreColor(audit?.overall_cx_nps, benchmark)},
+              {label:'Benchmark', val: String(benchmark), color: BODY_TEXT},
               {label:'Total signals', val: audit?.total_signals?.toLocaleString() || '--', color: DARK},
             ].map(f => (
               <div key={f.label} style={{padding:'20px',background:WHITE,borderRadius:8,textAlign:'center',border:`1px solid ${BORDER}`}}>
@@ -227,18 +231,19 @@ export default function EyeReportPage() {
         <div style={{padding:'48px 64px',borderBottom:'4px solid #e0dbd4',pageBreakAfter:'always'}}>
           {pageHeader('Theme Overview')}
           <div style={{fontFamily:'Georgia, serif',fontSize:28,fontWeight:700,color:DARK,marginBottom:6}}>CX Theme Overview</div>
-          <div style={{fontSize:13,color:BODY_TEXT,marginBottom:24}}>All five CX themes — NPS, sentiment and signal volume</div>
+          <div style={{fontSize:13,color:BODY_TEXT,marginBottom:24}}>All five CX themes — score, sentiment and signal volume</div>
 
           <div style={{display:'grid',gridTemplateColumns:'repeat(5,1fr)',gap:10,marginBottom:32}}>
             {CX_THEMES.map(themeName => {
               const t = getTheme(themeName)
-              const color = t ? npsColor(t.nps_score, audit?.benchmark || 45) : '#ccc'
+              const color = t ? scoreColor(t.nps_score, benchmark) : '#ccc'
               return (
                 <div key={themeName} style={{padding:'16px 12px',borderRadius:8,background:WHITE,borderTop:`4px solid ${color}`,textAlign:'center',border:`1px solid ${BORDER}`}}>
                   <div style={{fontSize:9,fontWeight:700,color:GOLD,textTransform:'uppercase',letterSpacing:'0.12em',marginBottom:8}}>{themeName}</div>
                   <div style={{fontFamily:'Georgia, serif',fontSize:30,fontWeight:700,color,marginBottom:4}}>
-                    {t?.nps_score !== null && t?.nps_score !== undefined ? (t.nps_score > 0 ? `+${t.nps_score}` : String(t.nps_score)) : '--'}
+                    {t?.nps_score !== null && t?.nps_score !== undefined ? scoreStr(t.nps_score) : '--'}
                   </div>
+                  <div style={{fontSize:9,color:'#aaa',marginBottom:4}}>Theme score</div>
                   <div style={{fontSize:10,color:BODY_TEXT,textTransform:'capitalize',marginBottom:4}}>{t?.sentiment || '--'}</div>
                   {t?.dropout_rate !== null && t?.dropout_rate !== undefined && (
                     <div style={{fontSize:10,color:t.dropout_rate > 20 ? RED : '#aaa'}}>{t.dropout_rate}% drop-off</div>
@@ -252,7 +257,7 @@ export default function EyeReportPage() {
           <table style={{width:'100%',borderCollapse:'collapse',fontSize:12}}>
             <thead>
               <tr style={{background:MID_GREEN}}>
-                {['Theme','NPS','Benchmark','Gap','Sentiment','Signals','Drop-off','Top Concern'].map(h => (
+                {['Theme','Score','Benchmark','Gap','Sentiment','Signals','Drop-off','Top Concern'].map(h => (
                   <th key={h} style={{textAlign:'left',padding:'10px 12px',color:WHITE,fontSize:10,fontWeight:600,textTransform:'uppercase',letterSpacing:'0.08em'}}>{h}</th>
                 ))}
               </tr>
@@ -260,13 +265,13 @@ export default function EyeReportPage() {
             <tbody>
               {CX_THEMES.map((themeName, i) => {
                 const t = getTheme(themeName)
-                const color = t ? npsColor(t.nps_score, audit?.benchmark || 45) : '#ccc'
-                const gap = t?.nps_score !== null && t?.nps_score !== undefined ? t.nps_score - (audit?.benchmark || 45) : null
+                const color = t ? scoreColor(t.nps_score, benchmark) : '#ccc'
+                const gap = t?.nps_score !== null && t?.nps_score !== undefined ? t.nps_score - benchmark : null
                 return (
                   <tr key={themeName} style={{borderBottom:`1px solid ${BORDER}`,background: i % 2 === 0 ? WHITE : '#f5f2ee'}}>
                     <td style={{padding:'10px 12px',fontWeight:600,color:DARK}}>{themeName}</td>
-                    <td style={{padding:'10px 12px',fontWeight:700,color,fontFamily:'Georgia, serif',fontSize:14}}>{t?.nps_score !== null && t?.nps_score !== undefined ? (t.nps_score > 0 ? `+${t.nps_score}` : t.nps_score) : '--'}</td>
-                    <td style={{padding:'10px 12px',color:BODY_TEXT}}>{audit?.benchmark || 45}</td>
+                    <td style={{padding:'10px 12px',fontWeight:700,color,fontFamily:'Georgia, serif',fontSize:14}}>{t?.nps_score !== null && t?.nps_score !== undefined ? scoreStr(t.nps_score) : '--'}</td>
+                    <td style={{padding:'10px 12px',color:BODY_TEXT}}>{benchmark}</td>
                     <td style={{padding:'10px 12px',fontWeight:600,color:gap !== null ? (gap >= 0 ? GREEN : RED) : '#aaa'}}>{gap !== null ? (gap > 0 ? `+${gap}` : String(gap)) : '--'}</td>
                     <td style={{padding:'10px 12px',color:BODY_TEXT,textTransform:'capitalize'}}>{t?.sentiment || '--'}</td>
                     <td style={{padding:'10px 12px',color:BODY_TEXT}}>{t?.signal_count || '--'}</td>
@@ -282,8 +287,8 @@ export default function EyeReportPage() {
         {/* THEME DEEP DIVES */}
         {CX_THEMES.map((themeName, index) => {
           const t = getTheme(themeName)
-          const color = t ? npsColor(t.nps_score, audit?.benchmark || 45) : '#ccc'
-          const gap = t?.nps_score !== null && t?.nps_score !== undefined ? t.nps_score - (audit?.benchmark || 45) : null
+          const color = t ? scoreColor(t.nps_score, benchmark) : '#ccc'
+          const gap = t?.nps_score !== null && t?.nps_score !== undefined ? t.nps_score - benchmark : null
           return (
             <div key={themeName} style={{padding:'48px 64px',borderBottom:'4px solid #e0dbd4',pageBreakAfter:'always'}}>
               {pageHeader(`${themeName} Deep Dive`)}
@@ -291,10 +296,10 @@ export default function EyeReportPage() {
                 <div style={{fontSize:10,fontWeight:700,color:GOLD,textTransform:'uppercase',letterSpacing:'0.2em',marginBottom:8}}>{themeName}</div>
                 <div style={{display:'flex',alignItems:'baseline',gap:16,marginBottom:8}}>
                   <div style={{fontFamily:'Georgia, serif',fontSize:64,fontWeight:700,color,lineHeight:1}}>
-                    {t?.nps_score !== null && t?.nps_score !== undefined ? (t.nps_score > 0 ? `+${t.nps_score}` : String(t.nps_score)) : '--'}
+                    {t?.nps_score !== null && t?.nps_score !== undefined ? scoreStr(t.nps_score) : '--'}
                   </div>
                   <div>
-                    <div style={{fontSize:13,color:BODY_TEXT,marginBottom:4}}>vs benchmark <strong style={{color}}>{audit?.benchmark || 45}</strong></div>
+                    <div style={{fontSize:13,color:BODY_TEXT,marginBottom:4}}>vs benchmark <strong style={{color}}>{benchmark}</strong></div>
                     {gap !== null && <div style={{fontSize:13,fontWeight:600,color:gap >= 0 ? GREEN : RED}}>{gap >= 0 ? `+${gap} above benchmark` : `${gap} below benchmark`}</div>}
                   </div>
                 </div>
@@ -324,7 +329,7 @@ export default function EyeReportPage() {
                       <div style={{fontSize:10,fontWeight:600,color:GREEN,textTransform:'uppercase',letterSpacing:'0.1em',marginBottom:10}}>Positive keywords</div>
                       <div style={{display:'flex',flexWrap:'wrap',gap:6}}>
                         {t.positive_keywords.split(',').map((w: string, i: number) => (
-                          <span key={`pos-${i}`} style={{fontSize:Math.max(10, 18 - i),fontWeight:i < 3 ? 700 : 400,color:GREEN,opacity:Math.max(0.5, 1 - i * 0.06)}}>{w.trim()}</span>
+                          <span key={i} style={{fontSize:Math.max(10, 18 - i),fontWeight:i < 3 ? 700 : 400,color:GREEN,opacity:Math.max(0.5, 1 - i * 0.06)}}>{w.trim()}</span>
                         ))}
                       </div>
                     </div>
@@ -334,7 +339,7 @@ export default function EyeReportPage() {
                       <div style={{fontSize:10,fontWeight:600,color:RED,textTransform:'uppercase',letterSpacing:'0.1em',marginBottom:10}}>Negative keywords</div>
                       <div style={{display:'flex',flexWrap:'wrap',gap:6}}>
                         {t.negative_keywords.split(',').map((w: string, i: number) => (
-                          <span key={`neg-${i}`} style={{fontSize:Math.max(10, 18 - i),fontWeight:i < 3 ? 700 : 400,color:RED,opacity:Math.max(0.5, 1 - i * 0.06)}}>{w.trim()}</span>
+                          <span key={i} style={{fontSize:Math.max(10, 18 - i),fontWeight:i < 3 ? 700 : 400,color:RED,opacity:Math.max(0.5, 1 - i * 0.06)}}>{w.trim()}</span>
                         ))}
                       </div>
                     </div>
@@ -366,7 +371,7 @@ export default function EyeReportPage() {
                 <div style={{fontSize:11,fontWeight:700,color:GREEN,textTransform:'uppercase',letterSpacing:'0.12em',marginBottom:16}}>What customers love</div>
                 <div style={{display:'flex',flexWrap:'wrap',gap:8,lineHeight:2}}>
                   {allPosKeywords.map((word, i) => (
-                    <span key={`allpos-${i}`} style={{fontSize:Math.max(12, 28 - i * 1.2),fontWeight:i < 3 ? 700 : i < 6 ? 600 : 400,color:GREEN,opacity:Math.max(0.4, 1 - i * 0.04)}}>{word}</span>
+                    <span key={i} style={{fontSize:Math.max(12, 28 - i * 1.2),fontWeight:i < 3 ? 700 : i < 6 ? 600 : 400,color:GREEN,opacity:Math.max(0.4, 1 - i * 0.04)}}>{word}</span>
                   ))}
                 </div>
               </div>
@@ -376,7 +381,7 @@ export default function EyeReportPage() {
                 <div style={{fontSize:11,fontWeight:700,color:RED,textTransform:'uppercase',letterSpacing:'0.12em',marginBottom:16}}>What customers complain about</div>
                 <div style={{display:'flex',flexWrap:'wrap',gap:8,lineHeight:2}}>
                   {allNegKeywords.map((word, i) => (
-                    <span key={`allneg-${i}`} style={{fontSize:Math.max(12, 28 - i * 1.2),fontWeight:i < 3 ? 700 : i < 6 ? 600 : 400,color:RED,opacity:Math.max(0.4, 1 - i * 0.04)}}>{word}</span>
+                    <span key={i} style={{fontSize:Math.max(12, 28 - i * 1.2),fontWeight:i < 3 ? 700 : i < 6 ? 600 : 400,color:RED,opacity:Math.max(0.4, 1 - i * 0.04)}}>{word}</span>
                   ))}
                 </div>
               </div>
@@ -391,14 +396,14 @@ export default function EyeReportPage() {
           <div style={{fontSize:13,color:BODY_TEXT,marginBottom:32}}>Recommended CX interventions ranked by negative signal contribution</div>
 
           {sortedByNeg.map((t, i) => {
-            const color = npsColor(t.nps_score, audit?.benchmark || 45)
+            const color = scoreColor(t.nps_score, benchmark)
             const negPct = totalNeg > 0 ? Math.round((t.negative_signal_count || 0) / totalNeg * 100) : 0
             return (
-              <div key={`action-${i}`} style={{marginBottom:16,padding:'16px 20px',borderRadius:8,background:WHITE,border:`1px solid ${BORDER}`,borderLeft:`4px solid ${color}`}}>
+              <div key={i} style={{marginBottom:16,padding:'16px 20px',borderRadius:8,background:WHITE,border:`1px solid ${BORDER}`,borderLeft:`4px solid ${color}`}}>
                 <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:8}}>
                   <div style={{display:'flex',alignItems:'center',gap:10}}>
                     <span style={{fontSize:10,fontWeight:700,color:GOLD,textTransform:'uppercase',letterSpacing:'0.15em'}}>{t.theme}</span>
-                    <span style={{fontSize:12,fontWeight:700,color}}>NPS {t.nps_score > 0 ? `+${t.nps_score}` : t.nps_score}</span>
+                    <span style={{fontSize:12,fontWeight:700,color}}>Score {scoreStr(t.nps_score)}</span>
                   </div>
                   <span style={{fontSize:11,color:RED,fontWeight:600}}>{negPct}% of negative signals</span>
                 </div>
