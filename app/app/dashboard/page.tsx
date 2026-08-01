@@ -960,7 +960,8 @@ export default function DashboardPage() {
                         <div style={{fontFamily:'Georgia,serif',fontSize:24,fontWeight:700,color,marginBottom:2}}>
                           {t?.nps_score !== null && t?.nps_score !== undefined ? (t.nps_score > 0 ? `+${t.nps_score}` : String(t.nps_score)) : '--'}
                         </div>
-                        <div style={{fontSize:9,color:'#aaa',marginBottom:6}}>Theme score</div>
+                        <div style={{fontSize:9,color:'#aaa',marginBottom:2}}>Theme score</div>
+                        <div style={{fontSize:9,color:'#aaa',marginBottom:6}}>vs benchmark {cxAudit.benchmark}</div>
                         {t && (
                           <>
                             <div style={{display:'flex',alignItems:'center',justifyContent:'center',gap:4,marginBottom:5}}>
