@@ -15,7 +15,6 @@ const RED = '#e87878'
 const AMBER = '#C9A84C'
 
 const SUPABASE_URL = 'https://alrwyeenxeuxgkcskkes.supabase.co'
-const ADMIN_PASSWORD = 'ks-admin-2026'
 const KPI_NAMES = ['awareness', 'consideration', 'usage', 'imagery', 'buzz']
 const CX_THEMES = ['Product', 'Experience', 'Customer Service', 'Pricing', 'Collections']
 
@@ -69,8 +68,11 @@ type Section = 'payments' | 'clients' | 'approval' | 'upload' | 'scraper'
 type Decision = 'approve' | 'reject' | null
 
 export default function AdminPage() {
+  const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [authed, setAuthed] = useState(false)
+  const [token, setToken] = useState('')
+  const [signingIn, setSigningIn] = useState(false)
   const [section, setSection] = useState<Section>('payments')
   const [orders, setOrders] = useState<any[]>([])
   const [brands, setBrands] = useState<any[]>([])
@@ -101,7 +103,38 @@ export default function AdminPage() {
   const headers = {
     'Content-Type': 'application/json',
     'apikey': anon,
-    'Authorization': `Bearer ${anon}`,
+    'Authorization': `Bearer ${token || anon}`,
+  }
+
+  const signIn = async () => {
+    setSigningIn(true)
+    setMsg('')
+    try {
+      const res = await fetch(`${SUPABASE_URL}/auth/v1/token?grant_type=password`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'apikey': anon },
+        body: JSON.stringify({ email, password }),
+      })
+      const data = await res.json()
+      if (!res.ok || !data.access_token) {
+        setMsg('Wrong email or password')
+        setSigningIn(false)
+        return
+      }
+      const payload = JSON.parse(atob(data.access_token.split('.')[1]))
+      const role = payload?.app_metadata?.role
+      if (role !== 'admin') {
+        setMsg('This account does not have admin access')
+        setSigningIn(false)
+        return
+      }
+      setToken(data.access_token)
+      setAuthed(true)
+      setMsg('')
+    } catch {
+      setMsg('Could not sign in. Check your connection.')
+    }
+    setSigningIn(false)
   }
 
   const fetchOrders = async () => {
@@ -482,14 +515,18 @@ export default function AdminPage() {
         <div style={{fontSize:32,color:GOLD,marginBottom:12}}>♛</div>
         <div style={{fontFamily:'Georgia,serif',fontSize:18,fontWeight:700,color:CREAM,marginBottom:4}}>Admin Panel</div>
         <div style={{fontSize:12,color:CREAM_DIM,marginBottom:24}}>King Solomon — internal only</div>
-        <input type="password" placeholder="Admin password" value={password}
+        <input type="email" placeholder="Email" value={email}
+          onChange={e => setEmail(e.target.value)}
+          style={{width:'100%',padding:'10px 14px',borderRadius:8,border:'1px solid rgba(255,255,255,0.1)',background:'rgba(255,255,255,0.06)',color:CREAM,fontSize:14,marginBottom:10,fontFamily:'Inter,sans-serif'}}
+        />
+        <input type="password" placeholder="Password" value={password}
           onChange={e => setPassword(e.target.value)}
-          onKeyDown={e => { if (e.key === 'Enter') { if (password === ADMIN_PASSWORD) { setAuthed(true) } else { setMsg('Wrong password') } } }}
+          onKeyDown={e => { if (e.key === 'Enter') signIn() }}
           style={{width:'100%',padding:'10px 14px',borderRadius:8,border:'1px solid rgba(255,255,255,0.1)',background:'rgba(255,255,255,0.06)',color:CREAM,fontSize:14,marginBottom:12,fontFamily:'Inter,sans-serif'}}
         />
-        <button onClick={() => { if (password === ADMIN_PASSWORD) { setAuthed(true) } else { setMsg('Wrong password') } }}
+        <button onClick={signIn} disabled={signingIn}
           style={{width:'100%',padding:'10px',background:GOLD,color:DEEP,border:'none',borderRadius:8,fontSize:14,fontWeight:600,cursor:'pointer',fontFamily:'Inter,sans-serif'}}
-        >Enter</button>
+        >{signingIn ? 'Signing in...' : 'Enter'}</button>
         {msg && <div style={{marginTop:12,fontSize:12,color:RED}}>{msg}</div>}
       </div>
     </div>
@@ -514,7 +551,7 @@ export default function AdminPage() {
           </div>
         ))}
         <div style={{marginTop:'auto',padding:'12px 16px',borderTop:'1px solid rgba(255,255,255,0.07)'}}>
-          <button onClick={() => setAuthed(false)} style={{fontSize:11,color:CREAM_DIM,background:'none',border:'none',cursor:'pointer',fontFamily:'Inter,sans-serif'}}>Sign out</button>
+          <button onClick={() => { setAuthed(false); setToken(''); setPassword('') }} style={{fontSize:11,color:CREAM_DIM,background:'none',border:'none',cursor:'pointer',fontFamily:'Inter,sans-serif'}}>Sign out</button>
         </div>
       </div>
 
