@@ -85,7 +85,7 @@ export default function Home() {
         <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(280px,1fr))',gap:16}}>
           {[
             {stat:'3 days',title:'Fastest turnaround',desc:"Brand health reports delivered in 3 days. Traditional trackers take weeks. You see what is happening before your competitors do."},
-            {stat:'90%',title:'Lower than agency cost',desc:"Kantar and YouGov charge $25K to $150K per year. Solomon's IQ starts at $599 for a full brand health report."},
+            {stat:'94%',title:'Lower than agency cost',desc:"Kantar and YouGov charge $25K to $150K per year. Solomon's IQ starts at $1,499 for a full brand health report."},
             {stat:'5 KPIs',title:'In one verdict',desc:"Awareness, Consideration, Usage, Imagery and Buzz tracked together with competitor context and a recommended action."},
           ].map(s => (
             <div key={s.stat} style={{background:WHITE,border:`1px solid ${BORDER}`,borderRadius:12,padding:'24px 20px',textAlign:'center'}}>
