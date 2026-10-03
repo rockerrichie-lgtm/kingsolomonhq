@@ -64,7 +64,7 @@ const EYE_VERDICT_PLACEHOLDERS: Record<string, { signal: string; action: string 
   },
 }
 
-type Section = 'payments' | 'clients' | 'approval' | 'upload' | 'scraper'
+type Section = 'payments' | 'clients' | 'newclient' | 'approval' | 'upload' | 'scraper'
 type Decision = 'approve' | 'reject' | null
 
 export default function AdminPage() {
@@ -98,6 +98,10 @@ export default function AdminPage() {
   const [csvUploading, setCsvUploading] = useState(false)
   const [newOrder, setNewOrder] = useState({ brand_id: '', plan_name: 'Insight', product: 'iq', amount_inr: '', client_email: '' })
   const [orderCreating, setOrderCreating] = useState(false)
+  const [newClientEmail, setNewClientEmail] = useState('')
+  const [newClientBrand, setNewClientBrand] = useState('')
+  const [clientCreating, setClientCreating] = useState(false)
+  const [createdClient, setCreatedClient] = useState<any>(null)
 
   const anon = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ''
   const headers = {
@@ -135,6 +139,34 @@ export default function AdminPage() {
       setMsg('Could not sign in. Check your connection.')
     }
     setSigningIn(false)
+  }
+
+  const createClientLogin = async () => {
+    if (!newClientEmail.trim()) { setMsg('❌ Please enter the client email.'); return }
+    setClientCreating(true)
+    setMsg('')
+    setCreatedClient(null)
+    try {
+      const res = await fetch('/api/admin/create-client', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        body: JSON.stringify({ email: newClientEmail.trim(), brand_name: newClientBrand.trim() }),
+      })
+      const data = await res.json()
+      if (!res.ok) {
+        setMsg(`❌ ${data.error || 'Could not create the account.'}`)
+      } else {
+        setCreatedClient(data)
+        setMsg(data.email_sent
+          ? '✅ Account created and welcome email sent.'
+          : `✅ Account created, but the email did not send. ${data.email_error || ''} Copy the password below and send it yourself.`)
+        setNewClientEmail('')
+        setNewClientBrand('')
+      }
+    } catch {
+      setMsg('❌ Could not reach the server.')
+    }
+    setClientCreating(false)
   }
 
   const fetchOrders = async () => {
@@ -300,12 +332,7 @@ export default function AdminPage() {
           headers: { ...headers, 'Prefer': 'return=minimal' },
           body: JSON.stringify({ iq_report_ready: true })
         })
-        // Save IQ verdict if written
         if (verdictData?.overall) {
-          const kpiVerdictsText = KPI_NAMES
-            .filter(k => verdictData.kpi_verdicts?.[k])
-            .map(k => `${k.toUpperCase()}: ${verdictData.kpi_verdicts[k]}`)
-            .join('\n\n')
           const fullNarrative = verdictData.overall
           const topInsights = KPI_NAMES
             .filter(k => verdictData.kpi_verdicts?.[k])
@@ -475,39 +502,6 @@ export default function AdminPage() {
     fetchPendingKpis()
   }
 
-  // ── Verdict field helper ───────────────────────────────────────────────────
-  function VerdictField({ groupKey, field, label, placeholder, color = GOLD, isOverall = false }: {
-    groupKey: string; field: string; label: string; placeholder: string; color?: string; isOverall?: boolean
-  }) {
-    const val = isOverall
-      ? iqVerdicts[groupKey]?.overall || ''
-      : iqVerdicts[groupKey]?.kpi_verdicts?.[field] || ''
-    return (
-      <div style={{background:isOverall?'rgba(201,168,76,0.06)':WHITE,border:`1px solid ${isOverall?'rgba(201,168,76,0.25)':BORDER}`,borderRadius:8,padding:'12px 14px',marginBottom:10}}>
-        <div style={{fontSize:9,fontWeight:700,color,textTransform:'uppercase',letterSpacing:'0.12em',marginBottom:6}}>{label}</div>
-        <textarea
-          placeholder={placeholder}
-          value={val}
-          onChange={e => {
-            if (isOverall) {
-              setIqVerdicts(prev => ({ ...prev, [groupKey]: { ...prev[groupKey] || { kpi_verdicts: {}, overall: '' }, overall: e.target.value } }))
-            } else {
-              setIqVerdicts(prev => ({
-                ...prev,
-                [groupKey]: {
-                  ...prev[groupKey] || { kpi_verdicts: {}, overall: '' },
-                  kpi_verdicts: { ...(prev[groupKey]?.kpi_verdicts || {}), [field]: e.target.value }
-                }
-              }))
-            }
-          }}
-          rows={isOverall ? 3 : 2}
-          style={{width:'100%',padding:'8px 10px',border:`1px solid ${isOverall?'rgba(201,168,76,0.3)':BORDER}`,borderRadius:6,fontSize:13,color:DARK,fontFamily:isOverall?'Georgia,serif':'Inter,sans-serif',fontStyle:isOverall?'italic':'normal',resize:'vertical',lineHeight:1.65}}
-        />
-      </div>
-    )
-  }
-
   if (!authed) return (
     <div style={{minHeight:'100vh',background:DEEP,display:'flex',alignItems:'center',justifyContent:'center'}}>
       <style>{`*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}body{font-family:'Inter',sans-serif}`}</style>
@@ -541,7 +535,7 @@ export default function AdminPage() {
           <div style={{fontSize:10,color:GOLD,fontWeight:600,letterSpacing:'0.1em',textTransform:'uppercase'}}>King Solomon</div>
           <div style={{fontSize:12,color:CREAM_DIM,marginTop:2}}>Admin panel</div>
         </div>
-        {([['payments','💳 Payments'],['clients','🏢 Clients'],['approval','✅ Data approval'],['upload','📤 Data upload'],['scraper','🔍 Scraper']] as const).map(([key, label]) => (
+        {([['payments','💳 Payments'],['clients','🏢 Clients'],['newclient','➕ New client'],['approval','✅ Data approval'],['upload','📤 Data upload'],['scraper','🔍 Scraper']] as const).map(([key, label]) => (
           <div key={key} onClick={() => { setSection(key); setSelectedClient(null); setMsg('') }}
             style={{padding:'10px 16px',fontSize:13,color:section===key?CREAM:CREAM_DIM,borderLeft:section===key?`2px solid ${GOLD}`:'2px solid transparent',background:section===key?'rgba(201,168,76,0.08)':'transparent',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'space-between'}}>
             <span>{label}</span>
@@ -559,6 +553,56 @@ export default function AdminPage() {
         {msg && (
           <div style={{padding:'10px 16px',borderRadius:8,background:msg.startsWith('✅')?'rgba(95,198,138,0.1)':'rgba(232,120,120,0.1)',border:`1px solid ${msg.startsWith('✅')?'rgba(95,198,138,0.3)':'rgba(232,120,120,0.3)'}`,fontSize:13,color:msg.startsWith('✅')?'#1a6b1a':'#7a1a1a',marginBottom:20}}>
             {msg} <span onClick={() => setMsg('')} style={{cursor:'pointer',marginLeft:12,opacity:0.5}}>✕</span>
+          </div>
+        )}
+
+        {/* NEW CLIENT */}
+        {section === 'newclient' && (
+          <div style={{maxWidth:640}}>
+            <h1 style={{fontFamily:'Georgia,serif',fontSize:25,fontWeight:700,color:DARK,marginBottom:6}}>New client</h1>
+            <p style={{fontSize:14,color:BODY_TEXT,marginBottom:24}}>Create a login for a new client. They get a welcome email with a temporary password.</p>
+
+            <div style={{background:WHITE,border:`1px solid ${BORDER}`,borderRadius:12,padding:'20px 24px',marginBottom:20}}>
+              <div style={{fontSize:11,fontWeight:600,color:GOLD,textTransform:'uppercase',letterSpacing:'0.1em',marginBottom:16}}>Create client login</div>
+
+              <div style={{marginBottom:12}}>
+                <div style={{fontSize:11,color:'#aaa',marginBottom:5}}>Client email</div>
+                <input type="email" placeholder="name@company.com" value={newClientEmail}
+                  onChange={e => setNewClientEmail(e.target.value)}
+                  style={{width:'100%',padding:'9px 12px',border:`1px solid ${BORDER}`,borderRadius:7,fontSize:14,color:DARK,fontFamily:'Inter,sans-serif'}}/>
+              </div>
+
+              <div style={{marginBottom:16}}>
+                <div style={{fontSize:11,color:'#aaa',marginBottom:5}}>Brand or company name (optional)</div>
+                <input type="text" placeholder="Used in the welcome email greeting" value={newClientBrand}
+                  onChange={e => setNewClientBrand(e.target.value)}
+                  style={{width:'100%',padding:'9px 12px',border:`1px solid ${BORDER}`,borderRadius:7,fontSize:14,color:DARK,fontFamily:'Inter,sans-serif'}}/>
+              </div>
+
+              <button onClick={createClientLogin} disabled={clientCreating}
+                style={{padding:'10px 22px',background:clientCreating?'#e0e0e0':GOLD,color:clientCreating?'#aaa':DEEP,border:'none',borderRadius:8,fontSize:14,fontWeight:600,cursor:clientCreating?'not-allowed':'pointer',fontFamily:'Inter,sans-serif'}}>
+                {clientCreating ? 'Creating...' : 'Create login →'}
+              </button>
+
+              <div style={{fontSize:11,color:'#aaa',marginTop:12,lineHeight:1.6}}>
+                The client is emailed a temporary password from hello@kingsolomonhq.com.
+              </div>
+            </div>
+
+            {createdClient && (
+              <div style={{background:'#FDFAF3',border:'1px solid rgba(201,168,76,0.35)',borderRadius:12,padding:'18px 22px'}}>
+                <div style={{fontSize:11,fontWeight:600,color:GOLD,textTransform:'uppercase',letterSpacing:'0.1em',marginBottom:12}}>Account created</div>
+                <div style={{fontSize:11,color:'#aaa',marginBottom:3}}>Email</div>
+                <div style={{fontSize:14,color:DARK,marginBottom:12}}>{createdClient.email}</div>
+                <div style={{fontSize:11,color:'#aaa',marginBottom:3}}>Temporary password</div>
+                <div style={{fontSize:18,fontFamily:'monospace',color:DARK,letterSpacing:'0.05em',marginBottom:12}}>{createdClient.temp_password}</div>
+                <div style={{fontSize:12,color:BODY_TEXT,lineHeight:1.6}}>
+                  {createdClient.email_sent
+                    ? 'Welcome email sent. Keep this password until they confirm they are in.'
+                    : 'The email did not send. Copy this password and send it to the client another way.'}
+                </div>
+              </div>
+            )}
           </div>
         )}
 
@@ -715,7 +759,6 @@ export default function AdminPage() {
             <h1 style={{fontFamily:'Georgia,serif',fontSize:25,fontWeight:700,color:DARK,marginBottom:6}}>Data approval</h1>
             <p style={{fontSize:14,color:BODY_TEXT,marginBottom:20}}>Approve or reject each KPI and theme. Write your verdict. Submit to publish to client dashboard.</p>
 
-            {/* IQ */}
             <div style={{marginBottom:32}}>
               <div style={{fontSize:11,fontWeight:600,color:GOLD,textTransform:'uppercase',letterSpacing:'0.1em',marginBottom:12}}>Solomon&apos;s IQ — Pending review ({brandGroups.length})</div>
               {brandGroups.length === 0 ? (
@@ -737,7 +780,6 @@ export default function AdminPage() {
                           <span style={{fontSize:10,fontWeight:600,padding:'3px 10px',borderRadius:20,background:'rgba(201,168,76,0.1)',color:AMBER}}>Pending review</span>
                         </div>
 
-                        {/* KPI approval cards */}
                         <div style={{display:'grid',gridTemplateColumns:'repeat(5,1fr)',gap:10,marginBottom:16}}>
                           {KPI_NAMES.map(kpiName => {
                             const kpi = group.kpis.find((k: any) => k.kpi_name === kpiName)
@@ -759,7 +801,6 @@ export default function AdminPage() {
                           })}
                         </div>
 
-                        {/* Rejection instructions */}
                         {rejectedKpis.length > 0 && (
                           <div style={{marginBottom:16,display:'flex',flexDirection:'column',gap:8}}>
                             {rejectedKpis.map((kpi: any) => (
@@ -771,7 +812,6 @@ export default function AdminPage() {
                           </div>
                         )}
 
-                        {/* IQ Verdict write box */}
                         <div style={{borderTop:`1px solid ${BORDER}`,paddingTop:16,marginBottom:16}}>
                           <div style={{fontSize:11,fontWeight:600,color:GOLD,textTransform:'uppercase',letterSpacing:'0.1em',marginBottom:12}}>⭐ Solomon&apos;s IQ Verdict</div>
                           <div style={{fontSize:12,color:'#aaa',marginBottom:12}}>Write 2 sentences per KPI — Signal (what the data shows + business consequence) and Action (specific intervention + time horizon).</div>
@@ -803,7 +843,6 @@ export default function AdminPage() {
                             )
                           })}
 
-                          {/* Overall IQ verdict */}
                           <div style={{background:'rgba(201,168,76,0.06)',border:`1px solid rgba(201,168,76,0.25)`,borderRadius:8,padding:'12px 14px',marginTop:4}}>
                             <div style={{fontSize:9,fontWeight:700,color:GOLD,textTransform:'uppercase',letterSpacing:'0.12em',marginBottom:6}}>Overall IQ Verdict</div>
                             <div style={{fontSize:11,color:'#aaa',marginBottom:6}}>3 sentences: Risk (biggest risk + which KPI) · Strength (biggest strength + which KPI) · Priority (highest ROI intervention)</div>
@@ -820,7 +859,6 @@ export default function AdminPage() {
                           </div>
                         </div>
 
-                        {/* Submit row */}
                         <div style={{display:'flex',alignItems:'center',justifyContent:'space-between'}}>
                           <div style={{fontSize:12,color:'#aaa'}}>{group.kpis.filter((k:any)=>kpiDecisions[k.id]==='approve').length} approved · {group.kpis.filter((k:any)=>kpiDecisions[k.id]==='reject').length} flagged · {group.kpis.filter((k:any)=>!kpiDecisions[k.id]).length} undecided</div>
                           <div style={{display:'flex',gap:8}}>
@@ -841,7 +879,6 @@ export default function AdminPage() {
               )}
             </div>
 
-            {/* EYE */}
             <div>
               <div style={{fontSize:11,fontWeight:600,color:MID_GREEN,textTransform:'uppercase',letterSpacing:'0.1em',marginBottom:12}}>Solomon&apos;s Eye — Pending review ({pendingAudits.length})</div>
               {pendingAudits.length === 0 ? (
@@ -911,7 +948,6 @@ export default function AdminPage() {
                           </div>
                         )}
 
-                        {/* Theme approval cards */}
                         <div style={{fontSize:11,fontWeight:600,color:BODY_TEXT,textTransform:'uppercase',letterSpacing:'0.1em',marginBottom:10}}>CX themes</div>
                         {themes.length === 0 ? (
                           <div style={{fontSize:13,color:'#aaa',marginBottom:16}}>No theme scores found for this audit.</div>
@@ -942,7 +978,6 @@ export default function AdminPage() {
                           </div>
                         )}
 
-                        {/* Rejection instructions */}
                         {rejectedThemes.length > 0 && (
                           <div style={{marginBottom:16,display:'flex',flexDirection:'column',gap:8}}>
                             {rejectedThemes.map(theme => (
@@ -954,7 +989,6 @@ export default function AdminPage() {
                           </div>
                         )}
 
-                        {/* Eye Verdict write box */}
                         <div style={{borderTop:`1px solid ${BORDER}`,paddingTop:16,marginBottom:16}}>
                           <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:12}}>
                             <div style={{fontSize:11,fontWeight:600,color:GOLD,textTransform:'uppercase',letterSpacing:'0.1em'}}>👁 Solomon&apos;s Eye Verdict</div>
@@ -992,7 +1026,6 @@ export default function AdminPage() {
                             )
                           })}
 
-                          {/* Overall Eye verdict */}
                           <div style={{background:'rgba(201,168,76,0.06)',border:`1px solid rgba(201,168,76,0.25)`,borderRadius:8,padding:'12px 14px',marginTop:4}}>
                             <div style={{fontSize:9,fontWeight:700,color:GOLD,textTransform:'uppercase',letterSpacing:'0.12em',marginBottom:6}}>Overall Eye Verdict</div>
                             <div style={{fontSize:11,color:'#aaa',marginBottom:6}}>3 sentences: Risk (biggest CX risk + theme) · Strength (biggest CX strength + theme) · Priority (highest ROI CX intervention)</div>
@@ -1009,7 +1042,6 @@ export default function AdminPage() {
                           </div>
                         </div>
 
-                        {/* Submit row */}
                         <div style={{display:'flex',alignItems:'center',justifyContent:'space-between'}}>
                           <div style={{fontSize:12,color:'#aaa'}}>{themes.filter(t=>themeDecisions[t.id]==='approve').length} approved · {themes.filter(t=>themeDecisions[t.id]==='reject').length} flagged · {themes.filter(t=>!themeDecisions[t.id]).length} undecided</div>
                           <div style={{display:'flex',gap:8}}>

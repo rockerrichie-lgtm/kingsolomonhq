@@ -779,9 +779,25 @@ export default function DashboardPage() {
 
             {brandKpis.length === 0 ? (
               <div style={{background:'#f9f9f9',border:`1px solid ${BORDER}`,borderRadius:12,padding:'40px',textAlign:'center',marginBottom:24}}>
-                <div style={{fontSize:24,marginBottom:12}}>📊</div>
-                <p style={{fontSize:15,fontWeight:600,color:DARK,marginBottom:8}}>Your data is being prepared</p>
-                <p style={{fontSize:14,color:BODY_TEXT,lineHeight:1.75}}>We are collecting and verifying your brand signals. Your dashboard will populate once your first report is ready.</p>
+                <div style={{fontSize:32,marginBottom:16}}>📊</div>
+                <p style={{fontSize:16,fontWeight:700,color:DARK,marginBottom:8}}>Your brand signals are being collected</p>
+                <p style={{fontSize:14,color:BODY_TEXT,lineHeight:1.75,marginBottom:24,maxWidth:420,margin:'0 auto 24px'}}>We are pulling data from search, social, reviews and news sources. Your first report will be ready within 3 business days.</p>
+                <div style={{display:'flex',justifyContent:'center',gap:0,maxWidth:480,margin:'0 auto 20px'}}>
+                  {[
+                    {step:'1',label:'Signal collection',done:true},
+                    {step:'2',label:'Data verification',done:false},
+                    {step:'3',label:'Report ready',done:false},
+                  ].map((s, i) => (
+                    <div key={s.step} style={{display:'flex',alignItems:'center',flex:1}}>
+                      <div style={{display:'flex',flexDirection:'column',alignItems:'center',flex:1}}>
+                        <div style={{width:32,height:32,borderRadius:'50%',background:s.done?GOLD:'#e8e8e8',color:s.done?'#0F2318':'#aaa',display:'flex',alignItems:'center',justifyContent:'center',fontSize:13,fontWeight:700,marginBottom:6}}>{s.step}</div>
+                        <div style={{fontSize:11,color:s.done?DARK:'#aaa',fontWeight:s.done?600:400,textAlign:'center'}}>{s.label}</div>
+                      </div>
+                      {i < 2 && <div style={{height:2,width:32,background:'#e8e8e8',flexShrink:0,marginBottom:20}}/>}
+                    </div>
+                  ))}
+                </div>
+                <div style={{fontSize:12,color:'#aaa'}}>You will receive an email when your dashboard is ready.</div>
               </div>
             ) : (
               <div style={{display:'grid',gridTemplateColumns:'repeat(5,1fr)',gap:10,marginBottom:24}}>
