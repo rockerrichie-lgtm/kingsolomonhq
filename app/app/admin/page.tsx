@@ -263,7 +263,14 @@ export default function AdminPage() {
   const groupedKpis = pendingKpis.reduce((acc: any, kpi: any) => {
     const key = `${kpi.brand_id}__${kpi.checkpoint}`
     if (!acc[key]) acc[key] = { brand_id: kpi.brand_id, checkpoint: kpi.checkpoint, date: kpi.created_at, kpis: [] }
-    acc[key].kpis.push(kpi)
+    // Keep only the newest row per KPI name. Repeat scrapes before approval
+    // leave several pending rows for the same KPI; older ones are superseded.
+    const existing = acc[key].kpis.find((k: any) => k.kpi_name === kpi.kpi_name)
+    if (!existing) {
+      acc[key].kpis.push(kpi)
+    } else if (new Date(kpi.created_at) > new Date(existing.created_at)) {
+      acc[key].kpis[acc[key].kpis.indexOf(existing)] = kpi
+    }
     return acc
   }, {})
   const brandGroups = Object.values(groupedKpis) as any[]
@@ -324,40 +331,34 @@ export default function AdminPage() {
       }
     }
     if (rejectedCount === 0 && approvedCount > 0) {
-      const res = await fetch(`${SUPABASE_URL}/rest/v1/kpi_snapshots?brand_id=eq.${brand_id}&status=eq.pending_review&competitor_id=is.null&select=id`, { headers })
-      const remaining = await res.json()
-      if (Array.isArray(remaining) && remaining.length === 0) {
-        await fetch(`${SUPABASE_URL}/rest/v1/brands?id=eq.${brand_id}`, {
-          method: 'PATCH',
+      await fetch(`${SUPABASE_URL}/rest/v1/brands?id=eq.${brand_id}`, {
+        method: 'PATCH',
+        headers: { ...headers, 'Prefer': 'return=minimal' },
+        body: JSON.stringify({ iq_report_ready: true })
+      })
+      if (verdictData?.overall) {
+        const fullNarrative = verdictData.overall
+        const topInsights = KPI_NAMES
+          .filter(k => verdictData.kpi_verdicts?.[k])
+          .map(k => verdictData.kpi_verdicts[k])
+        await fetch(`${SUPABASE_URL}/rest/v1/verdicts`, {
+          method: 'POST',
           headers: { ...headers, 'Prefer': 'return=minimal' },
-          body: JSON.stringify({ iq_report_ready: true })
-        })
-        if (verdictData?.overall) {
-          const fullNarrative = verdictData.overall
-          const topInsights = KPI_NAMES
-            .filter(k => verdictData.kpi_verdicts?.[k])
-            .map(k => verdictData.kpi_verdicts[k])
-          await fetch(`${SUPABASE_URL}/rest/v1/verdicts`, {
-            method: 'POST',
-            headers: { ...headers, 'Prefer': 'return=minimal' },
-            body: JSON.stringify({
-              brand_id,
-              verdict_type: 'brand_level',
-              narrative: fullNarrative,
-              top_insights: topInsights,
-              recommended_action: null,
-              recommended_action_window: null,
-              risk_flags: null,
-              confidence_level: 'high',
-              status: 'ready',
-              created_at: new Date().toISOString(),
-            })
+          body: JSON.stringify({
+            brand_id,
+            verdict_type: 'brand_level',
+            narrative: fullNarrative,
+            top_insights: topInsights,
+            recommended_action: null,
+            recommended_action_window: null,
+            risk_flags: null,
+            confidence_level: 'high',
+            status: 'ready',
+            created_at: new Date().toISOString(),
           })
-        }
-        setMsg('✅ All KPIs approved. IQ report unlocked for client.')
-      } else {
-        setMsg(`✅ ${approvedCount} KPI${approvedCount > 1 ? 's' : ''} approved and published.`)
+        })
       }
+      setMsg('✅ All KPIs approved. IQ report unlocked for client.')
     } else {
       setMsg(`✅ ${approvedCount} approved, ${rejectedCount} flagged for re-scrape.`)
     }
