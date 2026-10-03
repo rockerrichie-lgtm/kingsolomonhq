@@ -63,7 +63,8 @@ export default function BrandSetup() {
     const supabase = createClient()
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) { router.push('/login'); return }
-    const { error } = await supabase.from('brands').upsert({
+
+    const { data: savedBrand, error } = await supabase.from('brands').upsert({
       user_id: user.id,
       brand_name: brandName.trim(),
       category,
@@ -78,8 +79,23 @@ export default function BrandSetup() {
       competitor_7: competitors[6].trim() || null,
       competitor_8: competitors[7].trim() || null,
       updated_at: new Date().toISOString()
-    }, { onConflict: 'user_id' })
+    }, { onConflict: 'user_id' }).select('id').single()
+
     if (error) { setError(error.message); setLoading(false); return }
+
+    // Sync competitor names into the competitors table, which the scraper and
+    // dashboard read from. Without this the names sit unused on the brand row.
+    if (savedBrand?.id) {
+      const names = competitors.map(c => c.trim()).filter(Boolean)
+      await supabase.from('competitors').delete().eq('brand_id', savedBrand.id)
+      if (names.length > 0) {
+        const { error: compError } = await supabase.from('competitors').insert(
+          names.map(name => ({ brand_id: savedBrand.id, name }))
+        )
+        if (compError) { setError(`Brand saved, but competitors failed: ${compError.message}`); setLoading(false); return }
+      }
+    }
+
     router.push('/dashboard')
   }
 
@@ -101,14 +117,12 @@ export default function BrandSetup() {
 
         {error && <p style={{color:'#e87878',fontSize:13,marginBottom:16}}>{error}</p>}
 
-        {/* Brand Name */}
         <div style={{marginBottom:20}}>
           <label style={{display:'block',fontSize:12,fontWeight:600,color:'#C9A84C',letterSpacing:'0.08em',textTransform:'uppercase',marginBottom:8}}>Brand name</label>
           <input type="text" placeholder="e.g. Mamaearth" value={brandName} onChange={e => setBrandName(e.target.value)}
             style={{width:'100%',background:'rgba(255,255,255,0.04)',border:'1px solid rgba(255,255,255,0.12)',borderRadius:8,padding:'12px 16px',color:'#F5F0E8',fontSize:15,outline:'none'}}/>
         </div>
 
-        {/* Category */}
         <div style={{marginBottom:20}}>
           <label style={{display:'block',fontSize:12,fontWeight:600,color:'#C9A84C',letterSpacing:'0.08em',textTransform:'uppercase',marginBottom:8}}>Category</label>
           <select value={category} onChange={e => setCategory(e.target.value)}
@@ -118,7 +132,6 @@ export default function BrandSetup() {
           </select>
         </div>
 
-        {/* Primary Market */}
         <div style={{marginBottom:20}}>
           <label style={{display:'block',fontSize:12,fontWeight:600,color:'#C9A84C',letterSpacing:'0.08em',textTransform:'uppercase',marginBottom:6}}>Primary market</label>
           <p style={{fontSize:12,color:'#C8C2B6',marginBottom:8}}>King Solomon will pull signals from this region by default.</p>
@@ -128,7 +141,6 @@ export default function BrandSetup() {
           </select>
         </div>
 
-        {/* Brand type */}
         <div style={{marginBottom:20}}>
           <label style={{display:'block',fontSize:12,fontWeight:600,color:'#C9A84C',letterSpacing:'0.08em',textTransform:'uppercase',marginBottom:6}}>Brand involvement type</label>
           <p style={{fontSize:12,color:'#C8C2B6',marginBottom:10}}>LIHI — Low involvement, high interest (FMCG, D2C). HILI — High involvement, low impulse (Health Tech, Financial Services).</p>
@@ -142,7 +154,6 @@ export default function BrandSetup() {
           </div>
         </div>
 
-        {/* Competitors */}
         <div style={{marginBottom:32}}>
           <label style={{display:'block',fontSize:12,fontWeight:600,color:'#C9A84C',letterSpacing:'0.08em',textTransform:'uppercase',marginBottom:4}}>
             Competitors <span style={{color:'rgba(197,194,186,0.4)',fontWeight:400,textTransform:'none',letterSpacing:0}}>(up to 8 — aim for 90% of category conversation)</span>
