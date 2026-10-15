@@ -76,6 +76,7 @@ export default function AdminPage() {
   const [section, setSection] = useState<Section>('payments')
   const [orders, setOrders] = useState<any[]>([])
   const [brands, setBrands] = useState<any[]>([])
+  const [competitors, setCompetitors] = useState<any[]>([])
   const [pendingKpis, setPendingKpis] = useState<any[]>([])
   const [pendingAudits, setPendingAudits] = useState<any[]>([])
   const [auditThemes, setAuditThemes] = useState<Record<string, any[]>>({})
@@ -181,8 +182,16 @@ export default function AdminPage() {
     setBrands(Array.isArray(data) ? data : [])
   }
 
+  const fetchCompetitors = async () => {
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/competitors?select=id,name,brand_id`, { headers })
+    const data = await res.json()
+    setCompetitors(Array.isArray(data) ? data : [])
+  }
+
+  // Fetches brand-level AND competitor rows. Competitor rows carry the same
+  // snapshot_type and are told apart by competitor_id being set.
   const fetchPendingKpis = async () => {
-    const res = await fetch(`${SUPABASE_URL}/rest/v1/kpi_snapshots?select=*&status=eq.pending_review&snapshot_type=eq.brand_level&competitor_id=is.null&order=created_at.desc`, { headers })
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/kpi_snapshots?select=*&status=eq.pending_review&snapshot_type=eq.brand_level&order=created_at.desc`, { headers })
     const data = await res.json()
     setPendingKpis(Array.isArray(data) ? data : [])
   }
@@ -209,12 +218,14 @@ export default function AdminPage() {
     if (authed) {
       fetchOrders()
       fetchBrands()
+      fetchCompetitors()
       fetchPendingKpis()
       fetchPendingAudits()
     }
   }, [authed])
 
   const getBrandName = (brandId: string) => brands.find(b => b.id === brandId)?.brand_name || brandId.slice(0, 8)
+  const getCompetitorName = (compId: string) => competitors.find(c => c.id === compId)?.name || compId.slice(0, 8)
 
   const markPaid = async (orderId: string) => {
     await fetch(`${SUPABASE_URL}/rest/v1/orders?id=eq.${orderId}`, {
@@ -260,32 +271,44 @@ export default function AdminPage() {
     setOrderCreating(false)
   }
 
+  // Brand rows and competitor rows are kept in separate lists on the group.
+  // Only the newest row per KPI (and per competitor per KPI) is kept, because
+  // repeat scrapes before approval leave several pending rows for the same KPI.
   const groupedKpis = pendingKpis.reduce((acc: any, kpi: any) => {
     const key = `${kpi.brand_id}__${kpi.checkpoint}`
-    if (!acc[key]) acc[key] = { brand_id: kpi.brand_id, checkpoint: kpi.checkpoint, date: kpi.created_at, kpis: [] }
-    // Keep only the newest row per KPI name. Repeat scrapes before approval
-    // leave several pending rows for the same KPI; older ones are superseded.
-    const existing = acc[key].kpis.find((k: any) => k.kpi_name === kpi.kpi_name)
+    if (!acc[key]) acc[key] = { brand_id: kpi.brand_id, checkpoint: kpi.checkpoint, date: kpi.created_at, kpis: [], compKpis: [] }
+    const list = kpi.competitor_id ? acc[key].compKpis : acc[key].kpis
+    const existing = list.find((k: any) => k.kpi_name === kpi.kpi_name && k.competitor_id === kpi.competitor_id)
     if (!existing) {
-      acc[key].kpis.push(kpi)
+      list.push(kpi)
     } else if (new Date(kpi.created_at) > new Date(existing.created_at)) {
-      acc[key].kpis[acc[key].kpis.indexOf(existing)] = kpi
+      list[list.indexOf(existing)] = kpi
     }
     return acc
   }, {})
   const brandGroups = Object.values(groupedKpis) as any[]
 
+  // Competitor rows grouped by competitor, so each gets its own labelled row.
+  const competitorRows = (group: any) => {
+    const byComp: Record<string, any[]> = {}
+    for (const k of group.compKpis) {
+      if (!byComp[k.competitor_id]) byComp[k.competitor_id] = []
+      byComp[k.competitor_id].push(k)
+    }
+    return Object.entries(byComp).map(([compId, kpis]) => ({ compId, kpis }))
+  }
+
   const rejectFullBatch = async (group: any) => {
     setLoading(true)
     setMsg('')
-    for (const kpi of group.kpis) {
+    for (const kpi of [...group.kpis, ...group.compKpis]) {
       await fetch(`${SUPABASE_URL}/rest/v1/kpi_snapshots?id=eq.${kpi.id}`, {
         method: 'PATCH',
         headers: { ...headers, 'Prefer': 'return=minimal' },
         body: JSON.stringify({ status: 'rejected', rejection_note: 'Full batch rejected for re-scrape' })
       })
     }
-    setMsg('✅ Full IQ batch rejected. Will be re-scraped on next run.')
+    setMsg('✅ Full IQ batch rejected, brand and competitors. Will be re-scraped on next run.')
     fetchPendingKpis()
     setLoading(false)
   }
@@ -306,11 +329,14 @@ export default function AdminPage() {
   const submitBrandDecisions = async (group: any) => {
     setLoading(true)
     setMsg('')
-    const { brand_id, kpis } = group
+    const { brand_id, kpis, compKpis } = group
     const groupKey = `${brand_id}__${group.checkpoint}`
     const verdictData = iqVerdicts[groupKey]
-    let approvedCount = 0
-    let rejectedCount = 0
+    let brandApproved = 0
+    let brandRejected = 0
+    let compApproved = 0
+    let compRejected = 0
+
     for (const kpi of kpis) {
       const decision = kpiDecisions[kpi.id]
       if (decision === 'approve') {
@@ -319,7 +345,7 @@ export default function AdminPage() {
           headers: { ...headers, 'Prefer': 'return=minimal' },
           body: JSON.stringify({ status: 'published', approved_at: new Date().toISOString() })
         })
-        approvedCount++
+        brandApproved++
       } else if (decision === 'reject') {
         const instruction = kpiInstructions[kpi.id] || ''
         await fetch(`${SUPABASE_URL}/rest/v1/kpi_snapshots?id=eq.${kpi.id}`, {
@@ -327,17 +353,39 @@ export default function AdminPage() {
           headers: { ...headers, 'Prefer': 'return=minimal' },
           body: JSON.stringify({ status: 'rejected', rejection_note: instruction, scraper_instruction: instruction })
         })
-        rejectedCount++
+        brandRejected++
       }
     }
-    if (rejectedCount === 0 && approvedCount > 0) {
+
+    for (const kpi of compKpis) {
+      const decision = kpiDecisions[kpi.id]
+      if (decision === 'approve') {
+        await fetch(`${SUPABASE_URL}/rest/v1/kpi_snapshots?id=eq.${kpi.id}`, {
+          method: 'PATCH',
+          headers: { ...headers, 'Prefer': 'return=minimal' },
+          body: JSON.stringify({ status: 'published', approved_at: new Date().toISOString() })
+        })
+        compApproved++
+      } else if (decision === 'reject') {
+        const instruction = kpiInstructions[kpi.id] || ''
+        await fetch(`${SUPABASE_URL}/rest/v1/kpi_snapshots?id=eq.${kpi.id}`, {
+          method: 'PATCH',
+          headers: { ...headers, 'Prefer': 'return=minimal' },
+          body: JSON.stringify({ status: 'rejected', rejection_note: instruction, scraper_instruction: instruction })
+        })
+        compRejected++
+      }
+    }
+
+    // The report unlocks on the brand's own scores. A rejected competitor only
+    // means that one comparison is missing until the next scrape.
+    if (brandRejected === 0 && brandApproved > 0) {
       await fetch(`${SUPABASE_URL}/rest/v1/brands?id=eq.${brand_id}`, {
         method: 'PATCH',
         headers: { ...headers, 'Prefer': 'return=minimal' },
         body: JSON.stringify({ iq_report_ready: true })
       })
       if (verdictData?.overall) {
-        const fullNarrative = verdictData.overall
         const topInsights = KPI_NAMES
           .filter(k => verdictData.kpi_verdicts?.[k])
           .map(k => verdictData.kpi_verdicts[k])
@@ -347,7 +395,7 @@ export default function AdminPage() {
           body: JSON.stringify({
             brand_id,
             verdict_type: 'brand_level',
-            narrative: fullNarrative,
+            narrative: verdictData.overall,
             top_insights: topInsights,
             recommended_action: null,
             recommended_action_window: null,
@@ -358,10 +406,13 @@ export default function AdminPage() {
           })
         })
       }
-      setMsg('✅ All KPIs approved. IQ report unlocked for client.')
+      setMsg(compRejected > 0
+        ? `✅ Brand approved and IQ report unlocked. ${compRejected} competitor score${compRejected > 1 ? 's' : ''} flagged for re-scrape.`
+        : '✅ All approved. IQ report unlocked for client, competitor comparison included.')
     } else {
-      setMsg(`✅ ${approvedCount} approved, ${rejectedCount} flagged for re-scrape.`)
+      setMsg(`✅ Brand: ${brandApproved} approved, ${brandRejected} flagged. Competitors: ${compApproved} approved, ${compRejected} flagged.`)
     }
+
     setKpiDecisions({})
     setKpiInstructions({})
     fetchPendingKpis()
@@ -768,9 +819,12 @@ export default function AdminPage() {
                 <div style={{display:'flex',flexDirection:'column',gap:16}}>
                   {brandGroups.map((group: any) => {
                     const groupKey = `${group.brand_id}__${group.checkpoint}`
-                    const allDecided = group.kpis.every((k: any) => !!kpiDecisions[k.id])
-                    const rejectedKpis = group.kpis.filter((k: any) => kpiDecisions[k.id] === 'reject')
-                    const missingInstructions = rejectedKpis.some((k: any) => !kpiInstructions[k.id])
+                    const allRows = [...group.kpis, ...group.compKpis]
+                    const allDecided = allRows.every((k: any) => !!kpiDecisions[k.id])
+                    const rejectedRows = allRows.filter((k: any) => kpiDecisions[k.id] === 'reject')
+                    const missingInstructions = rejectedRows.some((k: any) => !kpiInstructions[k.id])
+                    const compRows = competitorRows(group)
+                    const compKpiNames = Array.from(new Set(group.compKpis.map((k: any) => k.kpi_name))) as string[]
                     return (
                       <div key={groupKey} style={{background:WHITE,border:`1px solid ${BORDER}`,borderRadius:12,padding:'20px 24px'}}>
                         <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:16}}>
@@ -781,7 +835,8 @@ export default function AdminPage() {
                           <span style={{fontSize:10,fontWeight:600,padding:'3px 10px',borderRadius:20,background:'rgba(201,168,76,0.1)',color:AMBER}}>Pending review</span>
                         </div>
 
-                        <div style={{display:'grid',gridTemplateColumns:'repeat(5,1fr)',gap:10,marginBottom:16}}>
+                        <div style={{fontSize:11,fontWeight:600,color:GOLD,textTransform:'uppercase',letterSpacing:'0.1em',marginBottom:10}}>Brand scores</div>
+                        <div style={{display:'grid',gridTemplateColumns:'repeat(5,1fr)',gap:10,marginBottom:20}}>
                           {KPI_NAMES.map(kpiName => {
                             const kpi = group.kpis.find((k: any) => k.kpi_name === kpiName)
                             const decision = kpi ? kpiDecisions[kpi.id] : null
@@ -802,12 +857,46 @@ export default function AdminPage() {
                           })}
                         </div>
 
-                        {rejectedKpis.length > 0 && (
+                        {/* COMPETITOR SCORES */}
+                        {compRows.length > 0 && (
+                          <div style={{borderTop:`1px solid ${BORDER}`,paddingTop:16,marginBottom:20}}>
+                            <div style={{fontSize:11,fontWeight:600,color:MID_GREEN,textTransform:'uppercase',letterSpacing:'0.1em',marginBottom:4}}>Competitor scores</div>
+                            <div style={{fontSize:11,color:'#aaa',marginBottom:14}}>Competitors are tracked on {compKpiNames.join(' and ')} only.</div>
+                            {compRows.map(({ compId, kpis }) => (
+                              <div key={compId} style={{display:'grid',gridTemplateColumns:`140px repeat(${compKpiNames.length},1fr)`,gap:10,alignItems:'center',marginBottom:10}}>
+                                <div style={{fontSize:13,fontWeight:600,color:DARK}}>{getCompetitorName(compId)}</div>
+                                {compKpiNames.map(kpiName => {
+                                  const kpi = kpis.find((k: any) => k.kpi_name === kpiName)
+                                  const decision = kpi ? kpiDecisions[kpi.id] : null
+                                  return (
+                                    <div key={kpiName} style={{background:'#f9f9f9',borderRadius:10,padding:'10px',textAlign:'center',border:`2px solid ${decision==='approve'?GREEN:decision==='reject'?RED:BORDER}`}}>
+                                      <div style={{fontSize:9,fontWeight:600,color:MID_GREEN,textTransform:'uppercase',letterSpacing:'0.1em',marginBottom:4}}>{kpiName}</div>
+                                      <div style={{fontFamily:'Georgia,serif',fontSize:19,fontWeight:700,color:DARK,marginBottom:6}}>
+                                        {kpi ? (kpiName==='buzz'&&kpi.score>0?`+${kpi.score}`:kpi.score) : '--'}
+                                      </div>
+                                      {kpi ? (
+                                        <div style={{display:'flex',gap:4,justifyContent:'center'}}>
+                                          <button onClick={() => setKpiDecisions(prev => ({...prev,[kpi.id]:'approve'}))} style={{width:24,height:24,borderRadius:6,border:`1px solid ${decision==='approve'?GREEN:BORDER}`,background:decision==='approve'?GREEN:WHITE,color:decision==='approve'?WHITE:'#aaa',fontSize:11,cursor:'pointer',fontWeight:700}}>✓</button>
+                                          <button onClick={() => setKpiDecisions(prev => ({...prev,[kpi.id]:'reject'}))} style={{width:24,height:24,borderRadius:6,border:`1px solid ${decision==='reject'?RED:BORDER}`,background:decision==='reject'?RED:WHITE,color:decision==='reject'?WHITE:'#aaa',fontSize:11,cursor:'pointer',fontWeight:700}}>✗</button>
+                                        </div>
+                                      ) : <div style={{fontSize:10,color:'#ccc'}}>No data</div>}
+                                    </div>
+                                  )
+                                })}
+                              </div>
+                            ))}
+                          </div>
+                        )}
+
+                        {/* REJECTION INSTRUCTIONS, brand and competitor */}
+                        {rejectedRows.length > 0 && (
                           <div style={{marginBottom:16,display:'flex',flexDirection:'column',gap:8}}>
-                            {rejectedKpis.map((kpi: any) => (
+                            {rejectedRows.map((kpi: any) => (
                               <div key={kpi.id} style={{display:'flex',alignItems:'center',gap:8}}>
-                                <span style={{fontSize:11,fontWeight:600,color:RED,textTransform:'uppercase',minWidth:90}}>{kpi.kpi_name}</span>
-                                <input placeholder={`Re-scrape instruction for ${kpi.kpi_name}...`} value={kpiInstructions[kpi.id]||''} onChange={e => setKpiInstructions(prev => ({...prev,[kpi.id]:e.target.value}))} style={{flex:1,padding:'7px 12px',border:`1px solid ${RED}`,borderRadius:7,fontSize:13,color:DARK,fontFamily:'Inter,sans-serif'}}/>
+                                <span style={{fontSize:11,fontWeight:600,color:RED,textTransform:'uppercase',minWidth:170}}>
+                                  {kpi.competitor_id ? `${getCompetitorName(kpi.competitor_id)} · ${kpi.kpi_name}` : kpi.kpi_name}
+                                </span>
+                                <input placeholder={`Re-scrape instruction...`} value={kpiInstructions[kpi.id]||''} onChange={e => setKpiInstructions(prev => ({...prev,[kpi.id]:e.target.value}))} style={{flex:1,padding:'7px 12px',border:`1px solid ${RED}`,borderRadius:7,fontSize:13,color:DARK,fontFamily:'Inter,sans-serif'}}/>
                               </div>
                             ))}
                           </div>
@@ -861,13 +950,13 @@ export default function AdminPage() {
                         </div>
 
                         <div style={{display:'flex',alignItems:'center',justifyContent:'space-between'}}>
-                          <div style={{fontSize:12,color:'#aaa'}}>{group.kpis.filter((k:any)=>kpiDecisions[k.id]==='approve').length} approved · {group.kpis.filter((k:any)=>kpiDecisions[k.id]==='reject').length} flagged · {group.kpis.filter((k:any)=>!kpiDecisions[k.id]).length} undecided</div>
+                          <div style={{fontSize:12,color:'#aaa'}}>{allRows.filter((k:any)=>kpiDecisions[k.id]==='approve').length} approved · {allRows.filter((k:any)=>kpiDecisions[k.id]==='reject').length} flagged · {allRows.filter((k:any)=>!kpiDecisions[k.id]).length} undecided</div>
                           <div style={{display:'flex',gap:8}}>
                             <button onClick={() => rejectFullBatch(group)} disabled={loading}
                               style={{padding:'9px 20px',background:'rgba(232,120,120,0.08)',border:'1px solid rgba(232,120,120,0.35)',borderRadius:8,fontSize:13,fontWeight:600,color:'#7a1a1a',cursor:'pointer',fontFamily:'Inter,sans-serif'}}>
                               Reject scrape
                             </button>
-                            <button onClick={() => { if(!allDecided){setMsg('❌ Please tick or reject every KPI before submitting.');return} if(missingInstructions){setMsg('❌ Please add a re-scrape instruction for every rejected KPI.');return} submitBrandDecisions(group) }} disabled={loading}
+                            <button onClick={() => { if(!allDecided){setMsg('❌ Please tick or reject every score, brand and competitor, before submitting.');return} if(missingInstructions){setMsg('❌ Please add a re-scrape instruction for every rejected score.');return} submitBrandDecisions(group) }} disabled={loading}
                               style={{padding:'9px 20px',background:allDecided&&!missingInstructions?GOLD:'#e0e0e0',color:allDecided&&!missingInstructions?DEEP:'#aaa',border:'none',borderRadius:8,fontSize:13,fontWeight:600,cursor:allDecided?'pointer':'not-allowed',fontFamily:'Inter,sans-serif'}}>
                               {loading?'Submitting...':'Submit decisions →'}
                             </button>
